@@ -1,0 +1,30 @@
+# R
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# Python / Jupyter
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+
+# Editor/IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data & large binaries (kept out of this repo on purpose — course material/datasets)
+*.pdf
+*.csv
+*.jpg
+*.jpeg
+*.png
+*.zip
+*.xlsx
+*.hyper
+*.twb
+*.data

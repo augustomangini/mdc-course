@@ -1,0 +1,95 @@
+RELATÓRIO – PARTE 1: COORDENADAS PARALELAS
+Conjunto de dados: Periodic Table of Elements (118 elementos)
+Ferramenta: XDAT
+
+------------------------------------------------------------
+1. TIPO DE GRÁFICO E FERRAMENTA
+------------------------------------------------------------
+Foi utilizado um gráfico de Coordenadas Paralelas, gerado no software XDAT. Nesse
+tipo de visualização, cada propriedade (variável) é representada por um eixo
+vertical e cada elemento químico é representado por uma linha que cruza todos os
+eixos, conectando os seus valores em cada propriedade. É uma técnica adequada
+para dados multivariados, pois permite observar várias propriedades ao mesmo
+tempo e perceber relações (correlações) entre eixos vizinhos.
+
+------------------------------------------------------------
+2. PREPARAÇÃO DOS DADOS
+------------------------------------------------------------
+Foi utilizada a versão adaptada do arquivo (Periodic Table of Elements - adapted
+- v2.csv), na qual os campos vazios foram substituídos por "-1", pois o XDAT não
+processa células vazias. Como "-1" não representa um valor real (e sim ausência
+de dado), os registros com "-1" foram FILTRADOS dentro do gráfico, arrastando o
+filtro inferior de cada eixo para um valor logo acima de -1. Isso evita que a
+ausência de dados seja interpretada erroneamente como discrepância (outlier).
+Para a geração da figura final, os registros filtrados foram ocultados (em
+Options -> Display Settings, desmarcando "Show filtered Designs"), de forma que
+apenas os elementos com dados válidos permanecessem visíveis no gráfico.
+
+------------------------------------------------------------
+3. MAPEAMENTOS VISUAIS
+------------------------------------------------------------
+- Cada eixo vertical -> uma propriedade numérica do elemento.
+- Cada linha (polilinha) -> um elemento químico.
+- Posição da linha em cada eixo -> valor daquele elemento na propriedade.
+
+Eixos utilizados (da esquerda para a direita):
+Atomic Weight, Ionic Radius, Atomic Radius, Electronegativity, First Ionization
+Potential, Density, Melting Point (K), Boiling Point (K) e Specific Heat Capacity.
+
+A ordem dos eixos foi escolhida para deixar lado a lado as propriedades cujas
+relações se deseja observar, já que a correlação só é visível entre eixos
+adjacentes.
+
+------------------------------------------------------------
+4. INFORMAÇÕES OBTIDAS NA ANÁLISE
+------------------------------------------------------------
+(a) Correlações negativas (linhas que se cruzam em forma de "X" entre dois eixos):
+    - Atomic Radius x Electronegativity: elementos com raio atômico grande tendem
+      a ter eletronegatividade baixa, e vice-versa. As linhas saem de valores
+      altos em um eixo e chegam baixas no outro, formando o padrão de cruzamento.
+    - O mesmo comportamento aparece entre Atomic Radius e First Ionization
+      Potential (raio grande -> menor energia de ionização).
+
+(b) Correlações positivas (linhas aproximadamente paralelas entre dois eixos):
+    - Electronegativity x First Ionization Potential: as linhas seguem juntas,
+      indicando que elementos mais eletronegativos também tendem a ter maior
+      potencial de ionização.
+    - Melting Point x Boiling Point: forte paralelismo entre os dois eixos —
+      elementos com alto ponto de fusão também têm alto ponto de ebulição.
+
+(c) Padrões gerais:
+    - A maioria dos elementos concentra-se em valores baixos de Density,
+      Specific Heat Capacity e dos pontos de fusão/ebulição, com poucos
+      elementos atingindo os valores altos no topo desses eixos.
+
+(d) Agrupamento dos metais alcalinos:
+    Um conjunto de elementos descreve uma trajetória característica ao longo dos
+    eixos: raio atômico (Atomic Radius) alto, seguido de eletronegatividade
+    baixa, potencial de ionização baixo, densidade baixa e pontos de fusão e
+    ebulição baixos. Esse "perfil" corresponde aos metais alcalinos (Li, Na, K,
+    Rb, Cs) - elementos grandes, pouco densos e de baixa reatividade nesses
+    indicadores -, que aparecem como um feixe coerente de linhas atravessando o
+    gráfico de forma semelhante entre si.
+
+(e) Discrepâncias (outliers):
+    - Specific Heat Capacity: um único elemento atinge o valor máximo do eixo
+      (~14,3), muito acima de todos os demais — corresponde ao Hidrogênio.
+    - First Ionization Potential: os valores mais altos do eixo (~24,5 e ~21,5)
+      correspondem ao Hélio e ao Neônio (gases nobres).
+    - Electronegativity: o valor máximo (~3,98) corresponde ao Flúor.
+    Esses elementos aparecem como linhas que se destacam dos demais ao atingirem
+    os extremos superiores de seus respectivos eixos.
+
+------------------------------------------------------------
+5. CONCLUSÃO
+------------------------------------------------------------
+As coordenadas paralelas permitiram confirmar visualmente as correlações entre
+as propriedades dos elementos (positivas, como Melting x Boiling Point; e
+negativas, como Atomic Radius x Electronegativity) e identificar elementos
+atípicos pelos seus valores extremos (Hidrogênio, Hélio, Neônio e Flúor). A
+técnica complementa a projeção MDS: enquanto o MDS mostra a similaridade global
+entre os elementos, as coordenadas paralelas evidenciam de forma direta como
+cada propriedade se relaciona com as demais.
+
+[Inserir aqui a figura do gráfico de coordenadas paralelas gerado no XDAT, já com
+os valores -1 filtrados, indicando os eixos e destacando os padrões citados.]

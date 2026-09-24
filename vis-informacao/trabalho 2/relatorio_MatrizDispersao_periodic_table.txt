@@ -1,0 +1,91 @@
+RELATÓRIO – PARTE 1: MATRIZ DE GRÁFICOS DE DISPERSÃO (SPLOM)
+Conjunto de dados: Periodic Table of Elements (118 elementos)
+Ferramenta: Tableau
+
+------------------------------------------------------------
+1. TIPO DE GRÁFICO E FERRAMENTA
+------------------------------------------------------------
+Foi utilizada uma matriz de gráficos de dispersão (Scatterplot Matrix - SPLOM),
+gerada no software Tableau. Nesse tipo de visualização, um conjunto de
+propriedades numéricas é cruzado entre si: cada célula da matriz é um gráfico de
+dispersão de um par de propriedades (uma no eixo X e outra no eixo Y), o que
+permite analisar simultaneamente a relação entre várias propriedades. É uma
+técnica adequada para dados multivariados porque mostra, de uma só vez, todas as
+combinações par a par das variáveis escolhidas.
+
+------------------------------------------------------------
+2. CONSTRUÇÃO NO TABLEAU
+------------------------------------------------------------
+Como o Tableau não possui um botão específico para SPLOM, a matriz foi montada
+manualmente: as mesmas medidas foram colocadas tanto em Colunas quanto em Linhas,
+formando a grade de células. As medidas utilizadas foram Atomic Radius,
+Electronegativity, First Ionization Potential e Density (matriz 4x4). Para que
+cada célula exibisse todos os 118 elementos (e não um único ponto agregado), o
+campo Element foi adicionado em "Detail" no cartão Marks (equivalente a desligar
+a agregação de medidas). O tipo de marca foi definido como círculo (Circle).
+
+Observação: os valores "-1" presentes em algumas propriedades representam dados
+faltantes (por exemplo, gases nobres sem eletronegatividade definida) e foram
+filtrados para a análise final, mantendo-se apenas valores reais (>= 0).
+
+------------------------------------------------------------
+3. MAPEAMENTOS VISUAIS
+------------------------------------------------------------
+- Eixo X e Eixo Y de cada célula -> par de propriedades numéricas cruzadas.
+- Cada ponto -> um elemento químico.
+- Cor -> Type (tipo do elemento: Metal de Transição, Gás Nobre, Halogênio,
+  Metal Alcalino, Lantanídeo, Actinídeo, Transactinídeo, etc.).
+- Detalhe / Tooltip -> Element (nome do elemento exibido ao passar o mouse).
+
+A diagonal principal da matriz cruza cada propriedade com ela mesma, resultando
+em uma reta; por isso, a análise concentra-se nas células fora da diagonal.
+
+------------------------------------------------------------
+4. INFORMAÇÕES OBTIDAS NA ANÁLISE
+------------------------------------------------------------
+(a) Correlações negativas (nuvens de pontos com tendência descendente):
+    - Atomic Radius x Electronegativity: quanto maior o raio atômico, menor a
+      eletronegatividade do elemento.
+    - Atomic Radius x First Ionization Potential: quanto maior o raio atômico,
+      menor o potencial de ionização.
+
+(b) Correlações positivas (nuvens de pontos com tendência ascendente):
+    - Electronegativity x First Ionization Potential: elementos mais
+      eletronegativos tendem a apresentar maior potencial de ionização. Foi a
+      relação positiva mais nítida da matriz.
+
+(c) Padrões por categoria (uso da cor por Type):
+    - Gases Nobres: concentram-se no topo do eixo First Ionization Potential,
+      confirmando que possuem os maiores potenciais de ionização (Hélio e Neônio
+      no extremo superior).
+    - Metais Alcalinos: aparecem na região de raio atômico alto combinado com
+      eletronegatividade, potencial de ionização e densidade baixos.
+    - Halogênios: situam-se em valores altos de eletronegatividade e de
+      potencial de ionização.
+    - A separação de cores mostra que elementos do mesmo tipo tendem a ocupar
+      regiões semelhantes das células, evidenciando coerência entre a
+      classificação química e as propriedades físicas.
+
+(d) Discrepâncias (outliers):
+    - Transactinídeos (elementos sintéticos superpesados) aparecem isolados no
+      topo do eixo Density (valores em torno de 35 a 41), muito acima dos demais
+      elementos. Por serem valores calculados/estimados, destacam-se como
+      discrepâncias claras.
+    - Os Gases Nobres no topo do potencial de ionização também se afastam do
+      corpo principal dos dados.
+
+------------------------------------------------------------
+5. CONCLUSÃO
+------------------------------------------------------------
+A matriz de gráficos de dispersão permitiu visualizar, de forma direta, as
+relações entre pares de propriedades dos elementos, confirmando as correlações
+identificadas nas demais técnicas (negativa entre raio atômico e
+eletronegatividade/potencial de ionização; positiva entre eletronegatividade e
+potencial de ionização). O uso da cor por tipo de elemento revelou agrupamentos
+coerentes (gases nobres, metais alcalinos, halogênios) e destacou discrepâncias,
+em especial os transactinídeos com densidades muito elevadas. Em conjunto com a
+projeção MDS e as coordenadas paralelas, a SPLOM completou a análise
+multivariada do conjunto de dados.
+
+[Inserir aqui a figura da matriz de dispersão gerada no Tableau, com a legenda de
+cores por Type e os valores -1 filtrados, destacando as células comentadas.]

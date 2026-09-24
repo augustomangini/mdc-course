@@ -1,0 +1,658 @@
+---
+title: INF0615 -- Aprendizado de Máquina Supervisionado I
+output: pdf_document
+subtitle: Trabalho 1 - Severidade da Doença de Parkison
+author: 
+  - Anselmo Faria Alvarez Júnior
+  - Augusto José Mangini dos Santos
+  - Julio Cesar da Silva
+---
+
+```{r setup, include = FALSE}
+
+knitr::opts_chunk$set(
+  echo    = TRUE,   # Exibir código nos chunks
+  error   = FALSE,  # Ocultar mensagens de erro
+  message = FALSE,  # Ocultar mensagens informativas
+  warning = FALSE,  # Ocultar avisos
+  tidy    = FALSE   # Não reformatar automaticamente o código
+)
+
+options(digits = 4) # Definição do número de casas decimais padrão
+```
+
+Neste primeiro trabalho, exploraremos a predição de calorias que um indivíduo gastou durante um exercício, utilizando regressão linear. O conjunto de dados está disponível na página da disciplina no Moodle (arquivo `T01_SPLIT_set.csv`).
+
+# Função de apoio
+
+```{r}
+# A funcao abaixo auxilia na escrita dos modelos polinomiais. 
+# Parametros:
+#  "real_feature_names": conjunto de features continuas que sera considerado na
+#                        criacao do modelo polinomial.
+#
+#  "categorical_feature_names": conjunto de features categoricas que sera 
+#                               considerado na  criacao do modelo polinomial. Se
+#                                voces desejarem um modelo sem variaveis categoricas
+#                               basta nao passar nenhum valor para este parametro
+#                               na chamada da funcao
+#                       
+# "degree": numero inteiro que indica ate qual grau polinomial as features continuas
+#           em "real_feature_names" serao elevadas. 
+#
+# A funcao retorna a hipotese ja definida para realizar o treinamento do modelo. 
+# Uma ilustracao de uma funcao similar aparece no Ex02.R na linha 490
+
+getHypothesis <- function(real_feature_names, categorical_feature_names=F, target="Calorias", degree=3){
+    
+    hypothesis_string <- paste("hypothesis <- formula(", target, " ~ ")
+    for(d in 1:degree){
+        for(i in 1:length(real_feature_names)){
+            hypothesis_string <- paste(hypothesis_string, 
+                                       "I(", real_feature_names[i], "^", d, ") + ",
+                                       sep = "")
+        }
+    }
+    
+    if(typeof(categorical_feature_names) != "logical"){
+        for(i in 1:length(categorical_feature_names)){
+            hypothesis_string <- paste(hypothesis_string, 
+                                       categorical_feature_names[i], " + ",
+                                       sep = "")
+        } 
+    }
+    
+    
+    hypothesis_string <- substr(hypothesis_string, 1, nchar(hypothesis_string)-3)
+    hypothesis_string <- paste(hypothesis_string, ")")
+    hypothesis <- eval(parse(text=hypothesis_string))
+    return(hypothesis)
+}
+```
+
+# Tarefa 0 -- Configurando o ambiente
+
+Carregue as bibliotecas necessárias e defina uma semente aleatória para garantir a reprodutibilidade dos experimentos.
+
+```{r atv0-code}
+# Adicione as bibliotecas necessárias
+library(ggplot2)
+library(reshape2)
+library(corrplot)
+
+set.seed(42)
+```
+
+# Tarefa 1 -- Inspeção de Dados e Normalização
+
+Carreguem e inspecionem o conjunto de dados. Além disso, prepare os dados corretamente para utilizá-los como entrada para um modelo de regressão linear.
+
+```{r atv1-code}
+# Carregue o conjunto de dados
+train_data <- read.csv("T01_train_set.csv", header=TRUE, stringsAsFactors=TRUE)
+
+valid_data <- read.csv("T01_valid_set.csv", header=TRUE, stringsAsFactors=TRUE)
+
+# Sumário da base
+summary(train_data)
+
+# Dimensões do dataset
+cat("Amostras treino:", nrow(train_data), "\nFeatures:", ncol(train_data)-1, "\n")
+cat("Amostras validação:", nrow(valid_data),"\n")
+
+# Verificar se há valores ausentes
+if (any(is.na(train_data))) {
+  cat("Aviso: Existem valores ausentes no conjunto de treino.\n")
+} else {
+  cat("Nenhum valor ausente encontrado no conjunto de treino.\n")
+}
+
+# Verificar se há valores ausentes
+if (any(is.na(valid_data))) {
+  cat("Aviso: Existem valores ausentes no conjunto de validação.\n")
+} else {
+  cat("Nenhum valor ausente encontrado no conjunto de validação.\n")
+}
+
+# Primeiramente, trata-se os dados ausentes usando a média para valores numéricos
+for (col in names(train_data)) {
+  if (is.numeric(train_data[[col]])) {
+    media <- mean(train_data[[col]], na.rm = TRUE)
+    train_data[[col]][is.na(train_data[[col]])] <- media
+    valid_data[[col]][is.na(valid_data[[col]])] <- media  # usa a média do treino
+  }
+}
+
+# moda para valores categóricos
+nomes_tabela_train <- names(table(train_data$caos_vocal))
+moda_train <- nomes_tabela_train[table(train_data$caos_vocal) == max(table(train_data$caos_vocal))]
+
+train_data$caos_vocal[is.na(train_data$caos_vocal)] <- moda_train
+valid_data$caos_vocal[is.na(valid_data$caos_vocal)] <- moda_train
+
+# One-hot encoding das features categóricas (usando k-1 colunas por variável,
+# para evitar colinearidade perfeita com o intercepto)
+train_encoded <- train_data
+valid_encoded <- valid_data
+
+# genero: 2 categorias -> 1 coluna (Feminino = categoria de referência, quando masc = 0)
+train_encoded$genero_masc <- as.numeric(train_encoded$genero == "Masculino")
+valid_encoded$genero_masc <- as.numeric(valid_encoded$genero == "Masculino")
+
+# caos_vocal: 3 categorias -> 2 colunas (Baixo = categoria de referência, quando alto = 0 e moderado = 0)
+train_encoded$caos_alto <- as.numeric(train_encoded$caos_vocal == "Alto")
+valid_encoded$caos_alto <- as.numeric(valid_encoded$caos_vocal == "Alto")
+
+train_encoded$caos_moderado <- as.numeric(train_encoded$caos_vocal == "Moderado")
+valid_encoded$caos_moderado <- as.numeric(valid_encoded$caos_vocal == "Moderado")
+
+# Removendo as colunas categóricas originais
+train_encoded$genero <- NULL
+valid_encoded$genero <- NULL
+train_encoded$caos_vocal <- NULL
+valid_encoded$caos_vocal <- NULL
+
+summary(train_encoded)
+
+# Normalização
+#Aplicando a normalização Min-Max nos dados de treino e validação
+train_normalized <- train_encoded
+valid_normalized <- valid_encoded
+
+# Remover a variável alvo "UPDRS" da lista de features
+features <- setdiff(names(train_normalized), "UPDRS")
+
+# Calculando os valores mínimos e máximos de cada variável
+min_features <- apply(train_encoded[, features], 2, min)
+max_features <- apply(train_encoded[, features], 2, max)
+diff         <- max_features - min_features
+
+# Aplicando para treino
+train_normalized[, features] <- sweep(train_normalized[, features], 2, min_features, "-")
+train_normalized[, features] <- sweep(train_normalized[, features], 2, diff, "/")
+
+# Aplicando para validação - sem clamping
+valid_normalized[, features] <- sweep(valid_normalized[, features], 2, min_features, "-")
+valid_normalized[, features] <- sweep(valid_normalized[, features], 2, diff, "/")
+
+
+summary(train_normalized)
+
+```
+
+1.1 -- Quantas amostras existem no conjunto de dados? Como vocês lidarão com features categóricas, caso existam?
+
+1.2 -- Existem amostras com valores ausentes? Como vocês pretendem tratar esses casos?
+
+1.3 -- Há alguma característica dos dados que pode impactar o desempenho do modelo?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->\
+<!-- Fim da resposta -->
+1.1) Existem 4.041 amostras no conjunto de treinamento com 17 features, sendo duas categóricas (gênero e caos vocal). Além disso, existem 1239 valores nulos no conjunto completo de treinamento. No conjunto de validação existem 738 amostras, com 215 valores ausentes.
+
+Uma maneira de lidar com features categóricas é transformando-as em features numéricas usando algum método de transformação. Nesse caso, pode-se usar o método One-Hot Encoding, onde cada categoria é representada como uma coluna binária (0 ou 1). Isso é necessário para modelos de regressão
+
+1.2) Sim, todas features possuem valores ausentes, menos o gênero e UPDRS. O modo de lidar com esses casos é substituindo os valores ausentes pela média dos valores daquela feature para features numéricas e pela moda em caso de features categóricas.
+
+1.3) Sim, algumas características podem influenciar no desempenho. As features de voz são separadas entre Shimmer e Jitter, que são variações da mesma medida acústica (perturbação de frequência/amplitude) calculadas com métodos diferentes, então podem apresentar uma grande correlação entre si. Além disso, o dataset representa 42 pacientes com 4041 amostras, portanto cada paciente contribui com várias medições, fazendo com que as amostras não sejam independentes entre si, podendo impactar no modelo também. O fato de haver um desbalanceamento na categoria de gênero e a necessidade de subistuição de dados ausentes por imputação também podem impactar a eficiência do modelo.
+
+# Tarefa 2 -- Modelo Baseline
+
+Treinem um modelo baseline de regressão linear utilizando **todas as features disponíveis**. Avalie os métodos de equação normal e descida do gradiente.
+
+```{r atv2-code}
+# Treinamento Equação Normal    
+# modelo de regressão linear com as variáveis contínuas com biblioteca lm
+baseline <- lm(formula = 
+    UPDRS ~ genero_masc +
+    Jitter +
+    Jitter.Abs +
+    Jitter.RAP +
+    Jitter.PPQ5 +
+    Jitter.DDP +
+    Shimmer +
+    Shimmer.dB +
+    Shimmer.APQ3 +
+    Shimmer.APQ5 +
+    Shimmer.APQ11 +
+    Shimmer.DDA +
+    NHR +
+    HNR +
+    DFA +
+    PPE +
+    caos_alto +
+    caos_moderado,
+  data = train_normalized)
+
+# Exibindo o resumo do modelo ajustado
+#summary(baseline)
+train_pred <- predict(baseline, train_normalized)
+valid_pred <- predict(baseline, valid_normalized)
+
+# Treinamento Descida do Gradiente
+features_x <- setdiff(names(train_normalized), "UPDRS")
+
+x_train <- as.matrix(train_normalized[, features_x])
+y_train <- train_normalized$UPDRS
+
+gradient_descent <- function(x, y, alpha = 0.1, iterations = 1000) {
+  
+  m <- length(y)                 
+  X <- cbind(1, x)               # Adiciona uma coluna de 1s para o intercepto (theta_0)
+  Y <- matrix(y, ncol = 1)       
+  
+  # Inicializar coeficientes (betas)
+  beta <- matrix(0, nrow = ncol(X), ncol = 1) 
+  
+  for (i in 1:iterations) {
+    
+    # Calcular as previsões
+    y_pred <- X %*% beta
+    
+    # Calcular o erro
+    error <- y_pred - Y
+    
+    # Calcular o gradiente 
+    gradient <- (1/m) * t(X) %*% error
+    
+    # Atualizar os coeficientes
+    beta <- beta - alpha * gradient
+  }
+# Retornar os coeficientes finais com os nomes corretos
+  rownames(beta) <- c("Intercept", colnames(x))
+  return(beta)
+}
+
+betas_gd <- gradient_descent(x_train, y_train, alpha = 0.5, iterations = 5000)
+
+predict_dg <- function(betas, newdata) {
+  
+  features_names <- rownames(betas)[-1]
+  
+  x_new <- as.matrix(newdata[, features_names])
+  
+  #Adicionar a coluna de 1s para multiplicar com o Intercepto (theta_0)
+  X_matrix_new <- cbind(1, x_new)
+  
+  y_pred_matriz <- X_matrix_new %*% betas
+  
+  return(as.vector(y_pred_matriz))
+}
+
+train_pred_dg <- predict_dg(betas_gd, train_normalized)
+valid_pred_dg <- predict_dg(betas_gd, valid_normalized)
+
+# Avaliação do Modelo
+# Função para calcular o MAE
+MAE <- function(preds, labels) {
+  mae_values <- sum(abs(preds - labels)) / length(preds)
+  return(mae_values)
+}
+
+# Função para calcular o MSE
+MSE <- function(preds, labels) {
+  mse_values <- sum((preds - labels)^2) / length(preds)
+  return(mse_values)
+}
+
+# Função para calcular o R²
+R2 <- function(pred, true) {
+  rss <- sum((pred - true)^2)
+  tss <- sum((true - mean(true))^2)
+  r2 <- 1 - rss / tss
+  return(r2)
+}
+
+#### Avaliação da equação normal
+comparison <- data.frame(
+  Modelo = c("Equação Normal", "Descida Gradiente"),
+
+  MAE_Treino = c(
+    MAE(train_pred, train_normalized$UPDRS),
+    MAE(train_pred_dg, train_normalized$UPDRS)
+  ),
+
+  MAE_Valid = c(
+    MAE(valid_pred, valid_normalized$UPDRS),
+    MAE(valid_pred_dg, valid_normalized$UPDRS)
+  ),
+
+  MSE_Treino = c(
+    MSE(train_pred, train_normalized$UPDRS),
+    MSE(train_pred_dg, train_normalized$UPDRS)
+  ),
+
+  MSE_Valid = c(
+    MSE(valid_pred, valid_normalized$UPDRS),
+    MSE(valid_pred_dg, valid_normalized$UPDRS)
+  ),
+
+  R2_Treino = c(
+    R2(train_pred, train_normalized$UPDRS),
+    R2(train_pred_dg, train_normalized$UPDRS)
+  ),
+
+  R2_Valid = c(
+    R2(valid_pred, valid_normalized$UPDRS),
+    R2(valid_pred_dg, valid_normalized$UPDRS)
+  )
+)
+
+comparison
+
+```
+
+2.1 -- O modelo baseline foi suficiente para resolver o problema? Quais métricas de avaliação vocês utilizaram para justificar a resposta?
+
+2.2 -- Qual otimização foi melhor (Descida do Gradiente ou Equação Normal)? Por quê?
+
+**2.3 --** **Para as demais tarefas, utilize apenas uma das otimizações.**
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+2.1) O modelo baseline é utilizado como referência com todas as features da maneira mais ampla possível, portanto tem sua eficiência na resolução do problema de maneira limitada. Foram utilizados o MAE, MSE e principalmente o R² para essa avaliação.
+
+Como o R² é de aproximadamente 9% no conjunto de treino e 15% no conjunto de validação, significa que o modelo explica apenas 9%-15% da variância da métrica alvo, o UPDRS, o que é um valor bem abaixo do considerado aceitável na literatura para modelos gerais.
+
+2.2) Ambas as otimizações foram praticamente idênticas em seus resultados, com a Equação Normal apresentando um R² um pouco maior no conjunto de treino e a Descida do Gradiente apresentando um R² um pouco maior no conjunto de validação, então pode ser considerado minimamente superior. As métricas de MAE e MSE para ambos os modelos em ambos os conjuntos também foram praticamente idênticas entre si.
+<!-- Fim da resposta -->
+
+# Tarefa 3 -- Combinação de Features
+
+Implementem soluções alternativas baseadas em regressão linear através da combinação das features existentes para melhorar o resultado do *baseline*. Comparem suas soluções reportando os erros no **conjunto validação**. Vocês podem solicitar ajuda de uma LLM (Maritca AI, ChatGPT, DeepSeek, etc) se preferirem.
+
+**Lembrem-se que as features categóricas podem ser incluída no modelo mas fora do processo de combinação**. Vejam o Ex01.R como referência.\
+\
+Utilizem apenas
+
+```{r atv3-code}
+# Hipóteses alternativas
+# Resumo do bloco Jitter (usando a média das versões normalizadas)
+jitter_cols <- c("Jitter", "Jitter.Abs", "Jitter.RAP", "Jitter.PPQ5", "Jitter.DDP")
+train_normalized$jitter_medio <- rowMeans(train_normalized[, jitter_cols])
+valid_normalized$jitter_medio <- rowMeans(valid_normalized[, jitter_cols])
+
+# Resumo do bloco Shimmer
+shimmer_cols <- c("Shimmer", "Shimmer.dB", "Shimmer.APQ3", "Shimmer.APQ5", "Shimmer.APQ11", "Shimmer.DDA")
+train_normalized$shimmer_medio <- rowMeans(train_normalized[, shimmer_cols])
+valid_normalized$shimmer_medio <- rowMeans(valid_normalized[, shimmer_cols])
+
+# f01: interação entre os blocos agregados de Jitter e Shimmer
+f01 <- formula(UPDRS ~ jitter_medio + shimmer_medio + NHR + HNR + DFA + PPE
+               + genero_masc + caos_alto + caos_moderado
+               + jitter_medio * shimmer_medio)
+
+# f02: interação entre as duas medidas de ruído/harmonicidade
+f02 <- formula(UPDRS ~ jitter_medio + shimmer_medio + NHR + HNR + DFA + PPE
+               + genero_masc + caos_alto + caos_moderado
+               + jitter_medio * shimmer_medio + NHR * HNR)
+
+# f03: adicionando interação entre as medidas de complexidade não-linear (PPE e DFA)
+f03 <- formula(UPDRS ~ jitter_medio + shimmer_medio + NHR + HNR + DFA + PPE
+               + genero_masc + caos_alto + caos_moderado
+               + jitter_medio * shimmer_medio + NHR * HNR + PPE * DFA)
+
+# f04: adicionando interação entre gênero e jitter (efeito pode variar por gênero)
+f04 <- formula(UPDRS ~ jitter_medio + shimmer_medio + NHR + HNR + DFA + PPE
+               + genero_masc + caos_alto + caos_moderado
+               + jitter_medio * shimmer_medio + NHR * HNR + PPE * DFA
+               + genero_masc * jitter_medio)
+
+# f05: razão jitter/shimmer (proporção entre as duas perturbações, em vez de produto)
+f05 <- formula(UPDRS ~ jitter_medio + shimmer_medio + NHR + HNR + DFA + PPE
+               + genero_masc + caos_alto + caos_moderado
+               + I(jitter_medio / (shimmer_medio + 1e-6)))
+
+# Treinamento
+formulas <- c(f01, f02, f03, f04, f05)
+
+MaePerCombination <- data.frame(combination = numeric(length(formulas)), 
+                                       Treino    = numeric(length(formulas)),
+                                       Validacao      = numeric(length(formulas)))
+
+i <- 1
+for(f in formulas){
+  # Treinando o modelo com a fórmula atual
+  model <- lm(formula = f, data = train_normalized)
+  
+  # Realizando previsões para os dados de treino e validação
+  valPred   <- predict(model, valid_normalized)
+  trainPred <- predict(model, train_normalized)
+  
+  # Calculando o MAE para o conjunto de treino e validação
+  mae_train <- MAE(trainPred, train_normalized$UPDRS)
+  mae_val   <- MAE(valPred, valid_normalized$UPDRS)
+  
+  # Armazenando os resultados
+  MaePerCombination[i, ] <- c(i, mae_train, mae_val)
+  i <- i + 1
+}
+
+# Métricas de avaliação
+# Avaliação das combinações de features
+formulas <- c(f01, f02, f03, f04, f05)
+nomes_formulas <- c("f01_jitter_shimmer", "f02_nhr_hnr", "f03_ppe_dfa",
+                     "f04_genero_jitter", "f05_razao_jitter_shimmer")
+
+comparison_combinacoes <- data.frame(
+  Modelo     = character(length(formulas)),
+  MAE_Treino = numeric(length(formulas)),
+  MAE_Valid  = numeric(length(formulas)),
+  MSE_Treino = numeric(length(formulas)),
+  MSE_Valid  = numeric(length(formulas)),
+  R2_Treino  = numeric(length(formulas)),
+  R2_Valid   = numeric(length(formulas)),
+  stringsAsFactors = FALSE
+)
+
+for (i in seq_along(formulas)) {
+  model <- lm(formula = formulas[[i]], data = train_normalized)
+  
+  train_pred_comb <- predict(model, train_normalized)
+  valid_pred_comb <- predict(model, valid_normalized)
+  
+  comparison_combinacoes[i, ] <- list(
+    Modelo     = nomes_formulas[i],
+    MAE_Treino = MAE(train_pred_comb, train_normalized$UPDRS),
+    MAE_Valid  = MAE(valid_pred_comb, valid_normalized$UPDRS),
+    MSE_Treino = MSE(train_pred_comb, train_normalized$UPDRS),
+    MSE_Valid  = MSE(valid_pred_comb, valid_normalized$UPDRS),
+    R2_Treino  = R2(train_pred_comb, train_normalized$UPDRS),
+    R2_Valid   = R2(valid_pred_comb, valid_normalized$UPDRS)
+  )
+}
+
+comparison_completa <- rbind(comparison, comparison_combinacoes)
+comparison_completa
+
+# Curva de viés e variância
+comparison_melt <- melt(comparison_combinacoes[, c("Modelo", "MAE_Treino", "MAE_Valid")], id = "Modelo")
+
+ggplot(comparison_melt, aes(x = Modelo, y = value, group = variable, colour = variable)) +
+  geom_line() +
+  geom_point() +
+  ggtitle("MAE por combinação de features") +
+  ylab("MAE") +
+  xlab("Combinação") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+3.1 -- Quais foram os critérios utilizados para selecionar as combinações de features?
+
+3.2 -- Alguma combinação gerou um impacto positivo ou negativo significativo no desempenho do modelo? Por quê?
+
+3.3 -- Existe alguma relação entre viés e variância no seu modelo ao modificar as combinações de features?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+3.1) Para fazer a combinação das features, buscou-se agrupar as features redundantes e altamentes correlacionadas, com a ajuda do Claude Sonnet 5 para identificar essas correlações. Em blocos, combinou-se as 5 medidas de Jitter com a média em jitter_medio e as 6 medidas de Shimmer com a média em shimmer_medio e foram adicionadas interações entre grupos que capturam mecanismos acústicos distintos: Jitter×Shimmer (perturbação freq.×amplitude), NHR×HNR (ruído/harmonicidade), PPE×DFA (complexidade não-linear) e gênero×Jitter (efeito pode variar por sexo).
+
+3.2) Como é possível observar na tabela de comparação entre os modelos, o impacto das combinações escolhidas é muito pequeno. Todas as combinações apresentaram um R2 menor no conjunto de treino e um pouco maior no conjunto de validação, com a f04 apresentando o maior ganho e um R2 de 0,1984. O ganho é limitado porque o problema é de alto viés (R² ~0.07–0.08): as features explicam pouco do UPDRS.
+<!-- Fim da resposta -->
+
+# Tarefa 4 -- Modelos Polinomiais
+
+Implementem soluções alternativas baseadas em regressão linear aumentando os graus das features (regressão com polinômios) para melhorar o resultado obtido no baseline. Plotem o erro no conjunto de treinamento e validação pelo grau do polinômio.
+
+```{r atv4-code}
+# Hipóteses polinomiais
+# Features contínuas que serão elevadas aos graus polinomiais (blocos agregados
+# de Jitter/Shimmer + demais medidas acústicas). As features categóricas entram
+# no modelo de forma aditiva, fora do processo de elevação de grau.
+real_feats <- c("jitter_medio", "shimmer_medio", "NHR", "HNR", "DFA", "PPE")
+cat_feats  <- c("genero_masc", "caos_alto", "caos_moderado")
+
+grau_maximo <- 8
+
+# Treinamento
+# Para cada grau, gera a hipótese polinomial com getHypothesis, treina o modelo
+# via equação normal (lm) e mede o erro nos conjuntos de treino e validação.
+MaePerDegree <- data.frame(Degree     = numeric(grau_maximo),
+                           MAE_Treino = numeric(grau_maximo),
+                           MAE_Valid  = numeric(grau_maximo),
+                           MSE_Treino = numeric(grau_maximo),
+                           MSE_Valid  = numeric(grau_maximo),
+                           R2_Treino  = numeric(grau_maximo),
+                           R2_Valid   = numeric(grau_maximo))
+
+for (d in 1:grau_maximo) {
+  hypothesis <- getHypothesis(real_feats, cat_feats, target = "UPDRS", degree = d)
+
+  model <- lm(formula = hypothesis, data = train_normalized)
+
+  train_pred_poly <- predict(model, train_normalized)
+  valid_pred_poly <- predict(model, valid_normalized)
+
+  MaePerDegree[d, ] <- c(d,
+                         MAE(train_pred_poly, train_normalized$UPDRS),
+                         MAE(valid_pred_poly, valid_normalized$UPDRS),
+                         MSE(train_pred_poly, train_normalized$UPDRS),
+                         MSE(valid_pred_poly, valid_normalized$UPDRS),
+                         R2(train_pred_poly, train_normalized$UPDRS),
+                         R2(valid_pred_poly, valid_normalized$UPDRS))
+}
+
+# Métricas de avaliação
+MaePerDegree
+
+# Curva de viés e variância
+# O gráfico usa apenas as colunas de MAE (MSE e R2 ficam no dataframe impresso).
+MaePerDegreeMelt <- melt(MaePerDegree[, c("Degree", "MAE_Treino", "MAE_Valid")], id = "Degree")
+
+ggplot(data = MaePerDegreeMelt, aes(x = Degree, y = value, colour = variable)) +
+  geom_line() +
+  geom_point() +
+  ggtitle("Curva de Viés/Variância -- Regressão Polinomial") +
+  xlab("Grau do polinômio") +
+  ylab("MAE") +
+  scale_x_continuous(breaks = 1:grau_maximo) +
+  scale_color_manual(values = c("MAE_Treino" = "red", "MAE_Valid" = "blue")) +
+  theme(legend.position = c(0.7, 0.85), legend.title = element_blank())
+```
+
+4.1 -- Como o grau do polinômio afetou o desempenho do modelo?
+
+4.2 -- Houve um ponto ótimo onde o erro foi minimizado? Como vocês identificaram esse ponto?
+
+4.3 -- Em quais regiões da curva de viés e variância foi possível identificar underfitting e overfitting?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+4.1) O aumento do grau do polinômui reduz pouco o erro do treino, de 8.752 no grau 1 para 8.227 no grau 8, com o R2 subindo de 0.06727 para 0.17907, pois com o aumento do grau aumentou-se a flexibilidade do modelo para se ajustar aos dados. O erro de validação teve um comportamento em U, caindo até o grau 2-3 e depois aumentando novamente, indicando perda na generalização. 
+
+4.2) O ponto ótimo onde o erro é minimizado é no g grau 2, com valor de 7.521, sendo possível observá-lo como ponto mínimo do erro na curva de viés/variância, para o conjunto de treino. Aqui o modelo tem complexidade suficiente para reduzir o viés mas sem atingir a região de overfitting ainda. 
+
+4.3) Na curva de viés/variância é possível observar três regiões distintas: há underfitting/alto viés no grau 1, onde treino e validação tem erro "alto" e próximos entre si, ponto ideal no grau 2 onde o erro do conjunto de treinos é mínimo, como mencionado no item anterior, e overfitting/alta variância a partir do grau 4, onde o erro de treino continua caindo enquanto no conjunto de validação aumenta muito (quase 12 no grau 8), aumentando a distância entre as curvas.
+<!-- Fim da resposta -->
+
+# Tarefa 5 -- Conjunto de Teste
+
+Após identificar o melhor modelo, utilizem-no para fazer previsões no conjunto de teste e avaliem o seu desempenho.
+
+```{r atv5-code}
+# Melhor modelo identificado nas tarefas anteriores:
+# regressão polinomial de grau 2 sobre os blocos agregados (jitter_medio,
+# shimmer_medio, NHR, HNR, DFA, PPE) com as categóricas de forma aditiva.
+grau_otimo <- 2
+
+# Carregamento e preparação do conjunto de teste
+# O conjunto de teste passa exatamente pelo mesmo processamento do treino,
+test_data <- read.csv("T01_test_set.csv", header = TRUE, stringsAsFactors = TRUE)
+
+# O conjunto de teste possui uma coluna extra "participante" (identificador do
+# paciente) que não existe no treino/validação e não é usada pelo modelo.
+if ("participante" %in% names(test_data)) {
+  test_data$participante <- NULL
+}
+
+# Imputação: média (do treino) para numéricas e moda (do treino) para categóricas
+for (col in names(test_data)) {
+  if (is.numeric(test_data[[col]])) {
+    test_data[[col]][is.na(test_data[[col]])] <- mean(train_data[[col]], na.rm = TRUE)
+  }
+}
+test_data$caos_vocal[is.na(test_data$caos_vocal)] <- moda_train
+
+# One-hot encoding (mesmas colunas de referência usadas no treino)
+test_encoded <- test_data
+test_encoded$genero_masc   <- as.numeric(test_encoded$genero == "Masculino")
+test_encoded$caos_alto     <- as.numeric(test_encoded$caos_vocal == "Alto")
+test_encoded$caos_moderado <- as.numeric(test_encoded$caos_vocal == "Moderado")
+test_encoded$genero    <- NULL
+test_encoded$caos_vocal <- NULL
+
+# Normalização Min-Max usando os mínimos/máximos do TREINO
+test_normalized <- test_encoded
+test_normalized[, features] <- sweep(test_normalized[, features], 2, min_features, "-")
+test_normalized[, features] <- sweep(test_normalized[, features], 2, diff, "/")
+
+# Recriar as features agregadas (mesma combinação usada nas Tarefas 3 e 4)
+test_normalized$jitter_medio  <- rowMeans(test_normalized[, jitter_cols])
+test_normalized$shimmer_medio <- rowMeans(test_normalized[, shimmer_cols])
+
+# Treinamento do melhor modelo e predição no teste
+best_hypothesis <- getHypothesis(real_feats, cat_feats, target = "UPDRS", degree = grau_otimo)
+best_model      <- lm(formula = best_hypothesis, data = train_normalized)
+
+# Predição
+test_pred  <- predict(best_model, test_normalized)
+valid_pred_best <- predict(best_model, valid_normalized)
+
+# Métricas de avaliação (comparando validação x teste)
+resultados_teste <- data.frame(
+  Conjunto = c("Validação", "Teste"),
+  MAE = c(MAE(valid_pred_best, valid_normalized$UPDRS),
+          MAE(test_pred,       test_normalized$UPDRS)),
+  MSE = c(MSE(valid_pred_best, valid_normalized$UPDRS),
+          MSE(test_pred,       test_normalized$UPDRS)),
+  R2  = c(R2(valid_pred_best,  valid_normalized$UPDRS),
+          R2(test_pred,        test_normalized$UPDRS))
+)
+
+resultados_teste
+```
+
+5.1 -- Qual foi o critério adotado para definir o melhor modelo?
+
+5.2 -- Como os resultados no conjunto de teste se comparam aos obtidos no conjunto de validação? Houve algum indício degradação ou melhora do modelo?
+
+5.3 -- Expliquem a diferença entre os modelos e o porquê que estas diferenças levaram a resultados piores ou melhores.
+
+5.4 -- Considerando as diferentes abordagens testadas, quais estratégias poderiam ser aplicadas para melhorar ainda mais o desempenho do modelo?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+5.1) O critério foi o menor erro no conjunto de validação (MAE como métrica principal, apoiado por MSE e R²), de acordo com tradeoff de viés e variância. Comparando todas as configurações, o modelo polinomial de grau 2 foi o único a reduzir o erro de validação de forma significativa (MAE de 7,52 e R² de 0,35), sem cair na região de overfitting observada a partir do grau 4. Por isso ele foi escolhido como modelo final.
+
+5.2) Avaliando o modelo de grau 2 no conjunto de teste, houve degradação em relação à validação: o MAE subiu de 7,52 (validação) para 8,19 (teste), o MSE de 75,2 para 89,7 e o R² caiu de 0,35 para -0,14 (negativo). Isso significa que o bom desempenho no conjunto de validação não se transferiu totalmente para o conjunto de teste, o que pode indicar um overfitting ainda no split de validação. Além disso, o R² negativo evidencia que, mesmo o desempenho pelo MAE sendo comparável entre a validação e o teste, o modelo mal supera a média simples nesse conjunto, indiciando que o ganhos ganhos na validação não generalizam plenamente.
+
+5.3) Os métodos testados diferem na complexidade e na forma de representar as features. O baseline usa todas as features de forma linear e aditiva, o que é uma combinação simples e leva a um alto víes. A descida do gradiente e a equação normal são formas distintas de otimizar o mesmo modelo linear: a equação normal resolve de forma fechada e a descida do gradiente de forma iterativa, o que nesse caso levou a resultados equivalentes. Na tarefa 3, as combinações de features adicionam interações entre variáveis diferentes, mas trouxeram ganho pequeno porque o problema é de alto viés. Na tarefa 4, A regressão polinomial eleva as mesmas features a graus maiores, dando ao modelo maior complexidade para conseguir identificar relações não-lineares: no grau 2 isso reduz o viés e melhora a generalização (grau ideal), sendo que em graus altos a variância aumenta muito e o desempenho piora.
+
+5.4) Algumas estratégias possíveis: regularização dos modelos, validação cruzada k-fold, tratamento da dependência entre amostras (devido a característica inerente do dataset de vários registros por paciente), testar modelos não-lineares mais expressivos e melhorar a seleção de features.
+<!-- Fim da resposta -->
+
+# Observações Finais
+
+Justifiquem suas escolhas com base em evidências (métricas, gráficos, hipóteses teóricas).
+
+A clareza na comunicação dos resultados é mais importante do que a qualidade do modelo!

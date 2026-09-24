@@ -1,0 +1,39 @@
+1. Inspecionem os dados. Discutam as características básicas do conjunto de dados, como a quantidade de
+amostras, a presença de valores ausentes e a existência de features (atributos) categóricos. Também analisem
+se o conjunto de dados é balanceado ou não. Caso necessário, apliquem alguma técnica de balanceamento de
+classes e de normalização para preparar os dados para o treinamento.
+2. Regressão logística como baseline. Treinem uma regressão logística utilizando todas as features.
+Reportem a matriz de confusão relativa e métricas de interesse nos conjuntos de treinamento e validação.
+3. Melhoria do baseline. Implementem soluções alternativas baseadas em regressão logística, combinando
+features ou utilizando modelos polinomiais para melhorar o desempenho do baseline. Compare suas soluções
+reportando a métrica de interesse no conjunto de validação. Reportem a matriz de confusão relativa apenas
+para o melhor modelo (com base na métrica de interesse) no conjunto de validação.
+4. Análise do fator de regularização (λ). Escolham um dos modelos do item anterior e variem o fator de
+regularização (λ). Criem a curva viés/variância, colocando os diferentes valores de λ no eixo das abscissas.
+Identifiquem as regiões de underfitting, ótimo ajuste e overfitting. Escolham o modelo com o melhor fator
+de regularização e reportem a matriz de confusão relativa e métricas de interesse no conjunto de validação. Lembrem-se de que a curva viés/variância deve ser criada utilizando apenas os dados de
+treinamento e validação!
+5. Árvore de decisão como baseline. Treinem uma árvore de decisão e reportem a matriz de confusão relativa
+e métricas de interesse nos conjuntos de treinamento e validação.
+6. Variação da profundidade da árvore de decisão. Treinem árvores de decisão variando a profundidade
+máxima. Plotem a uma métrica de interesse nos conjuntos de treinamento e validação em função da profundidade da árvore. Identifiquem as regiões de underfitting, ótimo ajuste e overfitting. Escolham a árvore com
+tamanho ótimo e reportem sua matriz de confusão relativa no conjunto de validação.
+7. Florestas aleatórias. Treinem várias florestas aleatórias, variando o número de árvores. Plotem o desempenho nos conjuntos de treinamento e validação em função do número de árvores geradas. Identifiquem as
+regiões de underfitting, ponto ótimo e overfitting. Reportem também a matriz de confusão relativa e métricas
+de interesse no conjunto de validação, baseado na floresta com o melhor número de árvores.
+8. Avaliação de features. Explorem pelo menos dois subconjuntos de features (feature selection) para treinar ou
+árvore de decisão ou floresta aleatória. Escolham o melhor modelo com base no desempenho no conjunto
+1
+de validação e reportem a matriz de confusão relativa nesse conjunto. Dica: observem a importância
+de cada feature por meio do atributo variable.importance. Consultem os exercícios 07, 08 e 11
+para calcular essa importância.
+9. (Opcional) Ensembles. Como visto em aula, uma forma de lidar com dados desbalanceados é utilizar
+técnicas de amostragem, como Bagging, Pasting e Random Forest, sem a necessidade de modificar o conjunto
+de dados original. Portanto, implementem manualmente um protocolo que trate esse cenário, ajustando os
+parâmetros dessas técnicas (por exemplo, ntree no Bagging ou nf eatures na Random Forest). Reportem a
+matriz de confusão relativa no conjunto de validação, além de métricas de interesse.
+10. (Opcional) XGBoost. Treinem e avaliem o modelo de XGBoost. Modificam os hiperparâmetros desse
+modelo e reportem a matriz de confusão relativa e métricas de interesse no conjunto de validação.
+11. Avaliação do melhor modelo. Identifiquem o melhor modelo entre as configurações testadas e avaliem no
+conjunto de teste. Discutam os métodos utilizados, as diferenças entre eles, os resultados obtidos no conjunto
+de teste e possíveis melhorias para o algoritmo.

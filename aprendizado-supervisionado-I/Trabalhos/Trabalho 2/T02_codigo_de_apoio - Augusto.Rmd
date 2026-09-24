@@ -1,0 +1,1212 @@
+---
+title: INF0615 -- Aprendizado de Máquina Supervisionado I
+output: pdf_document
+subtitle: Trabalho 2 - Detecção de Fake News
+author: 
+  - Anselmo Faria Alvarez Júnior
+  - Augusto José Mangini dos Santos
+  - Julio Cesar da Silva
+---
+
+```{r setup, include = FALSE}
+
+knitr::opts_chunk$set(
+  echo    = TRUE,   # Exibir código nos chunks
+  error   = FALSE,  # Ocultar mensagens de erro
+  message = FALSE,  # Ocultar mensagens informativas
+  warning = FALSE,  # Ocultar avisos
+  tidy    = FALSE   # Não reformatar automaticamente o código
+)
+
+options(digits = 4) # Definição do número de casas decimais padrão
+```
+
+Neste segundo trabalho, exploraremos a predição de Fake News.
+
+O conjunto de dados está disponível na página da disciplina no Moodle (arquivo `T02_SPLIT_set.csv`).
+
+# Função de apoio
+
+## getHypothesis
+
+Essa função auxilia na escrita dos modelos polinomiais.
+
+Parâmetros:
+
+\- `features_names`: conjunto de *features* a serem consideradas na criação do modelo polinomial;
+
+\- `degree`: indica até qual grau polinomial as *features* serão elevadas.
+
+```{r}
+# A funcao abaixo auxilia na escrita dos modelos polinomiais. 
+# Parametros:
+#  "real_feature_names": conjunto de features continuas que sera considerado na
+#                        criacao do modelo polinomial.
+# "target": nome da coluna da variável alvo que queira predizer.
+#                       
+# "degree": numero inteiro que indica ate qual grau polinomial as features continuas
+#           em "real_feature_names" serao elevadas. 
+#
+# A funcao retorna a hipotese ja definida para realizar o treinamento do modelo. 
+# Uma ilustracao de uma funcao similar aparece no Ex02.R na linha 490
+
+getHypothesis <- function(real_feature_names, target="label", degree=3){
+    
+    hypothesis_string <- paste("hypothesis <- formula(", target, " ~ ")
+    for(d in 1:degree){
+        for(i in 1:length(real_feature_names)){
+            hypothesis_string <- paste(hypothesis_string, 
+                                       "I(", real_feature_names[i], "^", d, ") + ",
+                                       sep = "")
+        }
+    }
+    
+    
+    hypothesis_string <- substr(hypothesis_string, 1, nchar(hypothesis_string)-3)
+    hypothesis_string <- paste(hypothesis_string, ")")
+    hypothesis <- eval(parse(text=hypothesis_string))
+    return(hypothesis)
+}
+```
+
+## getLoss
+
+Função que calcula a *Cross Entropy Loss*. Ela é útil para mostrar em gráficos de curva de viés e variância o erro de classificadores.
+
+Parâmetros:
+
+\- `y_true`: vetor das classes verdadeiras (*ground truth*);
+
+\- `y_pred`: vetor das classes preditas pelo classificador.
+
+```{r}
+getLoss <- function(y_true, y_pred){
+  y_pred_n <- y_pred[y_true == 0]
+  y_pred_p <- y_pred[y_true == 1]
+  
+  countN <- length(y_pred_n)
+  countP <- length(y_pred_p)
+  
+  eps <- 1e-9  # Constante pequena para estabilidade numérica
+
+  totalLossN <- sum(-log2(1 - y_pred_n + eps))
+  
+  totalLossP <- sum(-log2(y_pred_p + eps))
+  
+  avgLossN <- totalLossN / countN
+  avgLossP <- totalLossP / countP
+
+  avgLossTotal <- (avgLossN + avgLossP) / 2
+
+  return(c(LossN = avgLossN, LossP = avgLossP, AverageLoss = avgLossTotal))
+}
+```
+
+## getRelativeConfusionMatrix
+
+Função que calcula a matriz de confusão relativa.
+
+Paramêtro:
+
+\- `cm`: matriz de confusão absoluta.
+
+```{r}
+getRelativeConfusionMatrix <- function(cm){
+    cm_absolute = t(cm$table)
+    
+    cm_relative = cm_absolute
+    
+    cm_relative[1,1] = cm_absolute[1,1]/sum(cm_absolute[1,])
+    cm_relative[1,2] = cm_absolute[1,2]/sum(cm_absolute[1,])
+    cm_relative[2,1] = cm_absolute[2,1]/sum(cm_absolute[2,])
+    cm_relative[2,2] = cm_absolute[2,2]/sum(cm_absolute[2,])
+    
+    return(cm_relative)  
+}
+```
+
+## getMetrics
+
+Função que calcula diversas métricas de avaliação a partir de uma matriz de confusão.
+
+Parâmetro:
+
+\- `cm`: matriz de confusão (cm\$table).
+
+```{r}
+calculateMetrics <- function(cm) {
+  # Extrai TN, FP, FN, TP da matriz de confusão
+  cm <- t(cm)
+  
+  # Assumindo a estrutura:
+  #           Prediction
+  # Reference   0     1
+  #         0   TN    FP
+  #         1   FN    TP
+  
+  TN <- cm[1, 1]
+  FP <- cm[1, 2]
+  FN <- cm[2, 1]  
+  TP <- cm[2, 2]  
+  
+  precision <- if (TP + FP == 0) 0 else TP / (TP + FP)
+  recall    <- if (TP + FN == 0) 0 else TP / (TP + FN)
+  f1        <- if (precision + recall == 0) 0 else (2 * precision * recall) / (precision + recall)
+  bal_acc   <- ( (TN / (TN + FP)) + (TP / (TP + FN)) ) / 2
+  
+  return(c(Precision = precision, Recall = recall, F1 = f1, BalAcc = bal_acc))
+}
+
+## Exemplo de uso
+# cm <- confusionMatrix(data = as.factor(valPred), reference = as.factor(ValSet$target), positive='1')
+# metrics <- calculateMetrics(cm$table)
+```
+
+# Tarefa 0 -- Configurando o ambiente
+
+Carregue as bibliotecas necessárias e defina uma semente aleatória para garantir a reprodutibilidade dos experimentos.
+
+```{r atv0-code}
+# Adicione as bibliotecas necessárias
+set.seed(42)
+
+library(caret)
+library(rpart)
+library(glmnet)
+library(randomForest)
+library(ggplot2)
+library(reshape2)
+source("support_functions.R")
+
+# Funcao usada no exercicio 3
+function_valid_metrics <- function(
+    modelo,
+    train_normalized,
+    valid_normalized,
+    threshold = 0.5
+) {
+    train_pred <- predict(modelo, train_normalized, type = "response")
+    valid_pred <- predict(modelo, valid_normalized, type = "response")
+
+    pred_train <- ifelse(train_pred >= threshold, "true", "fake")
+    pred_valid <- ifelse(valid_pred >= threshold, "true", "fake")
+
+    pred_train <- factor(pred_train,
+                         levels = levels(train_normalized$label))
+
+    pred_valid <- factor(pred_valid,
+                         levels = levels(valid_normalized$label))
+
+    cm_train <- table(
+        Real = train_normalized$label,
+        Previsto = pred_train
+    )
+
+    cm_valid <- table(
+        Real = valid_normalized$label,
+        Previsto = pred_valid
+    )
+
+    cm_train_rel <- prop.table(cm_train, 1)
+    cm_valid_rel <- prop.table(cm_valid, 1)
+
+    cm_train_metrics <- confusionMatrix(
+        reference = train_normalized$label,
+        data = pred_train
+    )
+
+    cm_valid_metrics <- confusionMatrix(
+        reference = valid_normalized$label,
+        data = pred_valid
+    )
+
+    return(list(
+        train_matrix = cm_train,
+        valid_matrix = cm_valid,
+        train_matrix_relative = cm_train_rel,
+        valid_matrix_relative = cm_valid_rel,
+        train_metrics = cm_train_metrics,
+        valid_metrics = cm_valid_metrics
+    ))
+}
+
+function_valid_metrics_glmnet <- function(
+    modelo,
+    x_train,
+    y_train,
+    x_valid,
+    y_valid,
+    threshold = 0.5
+){
+
+    # Predições (probabilidades)
+    train_pred <- predict(
+        modelo,
+        newx = x_train,
+        type = "response"
+    )
+
+    valid_pred <- predict(
+        modelo,
+        newx = x_valid,
+        type = "response"
+    )
+
+    # Classes do problema
+    negative_class <- levels(y_train)[1]
+    positive_class <- levels(y_train)[2]
+
+    # Converter probabilidades em classes
+    pred_train <- ifelse(
+        train_pred >= threshold,
+        positive_class,
+        negative_class
+    )
+
+    pred_valid <- ifelse(
+        valid_pred >= threshold,
+        positive_class,
+        negative_class
+    )
+
+    pred_train <- factor(
+        pred_train,
+        levels = levels(y_train)
+    )
+
+    pred_valid <- factor(
+        pred_valid,
+        levels = levels(y_valid)
+    )
+
+    # Matrizes de confusão
+    cm_train <- table(
+        Real = y_train,
+        Previsto = pred_train
+    )
+
+    cm_valid <- table(
+        Real = y_valid,
+        Previsto = pred_valid
+    )
+
+    # Matrizes relativas
+    cm_train_rel <- prop.table(cm_train, 1)
+
+    cm_valid_rel <- prop.table(cm_valid, 1)
+
+    # Métricas
+    cm_train_metrics <- confusionMatrix(
+        reference = y_train,
+        data = pred_train
+    )
+
+    cm_valid_metrics <- confusionMatrix(
+        reference = y_valid,
+        data = pred_valid
+    )
+
+    return(list(
+        train_matrix = cm_train,
+        valid_matrix = cm_valid,
+
+        train_matrix_relative = cm_train_rel,
+        valid_matrix_relative = cm_valid_rel,
+        train_metrics = cm_train_metrics,
+        valid_metrics = cm_valid_metrics
+    ))
+}
+
+
+```
+
+# Tarefa 1 -- Inspeção de Dados
+
+Carreguem e inspecionem o conjunto de dados. Além disso, preparem os dados corretamente para serem utilizados nos classificadores, preocupando-se com o balanceamento de classes e normalização (se necessário).
+
+```{r atv1-code}
+train_data <- read.csv("T02_train_set.csv", stringsAsFactors = TRUE)
+valid_data <- read.csv("T02_valid_set.csv", stringsAsFactors = TRUE)
+
+# Sumário da base
+summary(train_data)
+
+# Tratamento dos valores ausentes
+# Pela quantidade de zeros nas colunas que possuem valores ausentes,
+# escolheu-se a mediana para substituição
+for (col in names(train_data)) {
+  if (is.numeric(train_data[[col]])) {
+    mediana <- median(train_data[[col]], na.rm = TRUE)
+
+    train_data[[col]][is.na(train_data[[col]])] <- mediana
+    valid_data[[col]][is.na(valid_data[[col]])] <- mediana
+  }
+}
+
+train_data$label <- as.factor(train_data$label)
+
+# ANTES
+table(train_data$label)
+prop.table(table(train_data$label))
+
+train_smote <- SMOTE(
+    label ~ .,
+    train_data,
+    perc.over = 300,
+    perc.under = 100,
+    k = 5
+)
+
+# DEPOIS
+table(train_smote$label)
+prop.table(table(train_smote$label))
+
+
+```
+
+1.1 – Quantas amostras existem no conjunto de dados?
+
+1.2 – Existem amostras com valores ausentes? Como vocês pretendem tratar esses casos?
+
+1.3 – Esse conjunto de dados é balanceado? Caso não seja, como pretendem tratá-lo e por que usar essa técnica específica?
+
+1.4 – Há alguma característica dos dados que pode impactar o desempenho do modelo?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+1.1 O conjunto de treinamento possui 1.568 amostras, distribuídas em duas classes: 314 notícias falsas (fake) e 1.254 
+notícias verdadeiras (true).
+
+2.2 Existem valores ausentes em diversas features, porém em pequena quantidade. Como a perda de dados seria desnecessária, 
+optou-se por substituir os valores ausentes pela mediana de cada atributo numérico, preservando todas as amostras do conjunto de treinamento.
+A escolha pela mediana foi feita porque as colunas com valores ausentes possuem muitos zeros e são assimétricas, então a escolha pela média poderia deixar de representar o "centro" dos dados.
+
+1.3 O conjunto de dados é desbalanceado, contendo aproximadamente 20% de notícias falsas e 80% de notícias verdadeiras. 
+Para reduzir o viés dos classificadores em favor da classe majoritária, optou-se pelo SMOTE por gerar exemplos sintéticos da classe minoritária, reduzindo o risco de overfitting em comparação ao simples oversampling por duplicação de exemplos.
+
+1.4 O conjunto apresenta algumas características que podem influenciar o desempenho dos classificadores:
+- Desbalanceamento entre as classes, com predominância da classe true, podendo induzir o modelo a favorecer essa classe.
+- Valores ausentes em algumas features, exigindo tratamento antes do treinamento.
+- Grande diferença de escala entre os atributos, com algumas variáveis apresentando valores próximos de zero e outras superiores a
+  um milhão, tornando recomendável a normalização dos dados.
+- Alta esparsidade, observada pelo fato de muitas features apresentarem mediana igual a zero, indicando que grande parte das
+  observações possui valor nulo nessas variáveis.
+- Presença de valores extremos (outliers), que podem influenciar principalmente modelos lineares.
+
+Como todas as features são numéricas, não foi necessário realizar codificação de atributos categóricos; apenas a variável label representa a classe alvo.
+
+<!-- Fim da resposta -->
+
+# Tarefa 2 -- Regressão Logística
+
+Treinem um modelo *baseline* de regressão logística utilizando **todas as features disponíveis**.
+
+```{r atv2-code}
+train_normalized <- train_smote
+valid_normalized <- valid_data
+
+# Remover a variável alvo "label" da lista de features
+features <- setdiff(names(train_normalized), "label")
+
+min_features <- apply(train_normalized[, features], 2, min)
+max_features <- apply(train_normalized[, features], 2, max)
+diff         <- max_features - min_features
+diff[diff == 0] <- 1
+
+# Treinamento
+train_normalized[, features] <- sweep(train_normalized[, features], 2, min_features, "-")
+train_normalized[, features] <- sweep(train_normalized[, features], 2, diff, "/")
+
+# Validacao
+valid_normalized[, features] <- sweep(valid_normalized[, features], 2, min_features, "-")
+valid_normalized[, features] <- sweep(valid_normalized[, features], 2, diff, "/")
+
+baseline <- glm(
+    label ~ .,
+    data = train_normalized,
+    family = binomial()
+)
+
+cat("=== Resumo do modelo baseline (Regressão Logística com todas as features) ===\n")
+summary(baseline)
+
+train_pred <- predict(baseline, train_normalized, type = "response")
+valid_pred <- predict(baseline, valid_normalized, type = "response")
+
+# Converter para classes
+pred_train <- ifelse(train_pred >= 0.5, "true", "fake")
+pred_valid <- ifelse(valid_pred >= 0.5, "true", "fake")
+
+pred_train <- factor(pred_train, levels = levels(train_normalized$label))
+pred_valid <- factor(pred_valid, levels = levels(valid_normalized$label))
+
+cm_train <- table(
+    Real = train_normalized$label,
+    Previsto = pred_train
+)
+
+cat("\n=== Matriz de Confusão (absoluta) - Conjunto de Treino ===\n")
+cm_train
+
+cm_valid <- table(
+    Real = valid_normalized$label,
+    Previsto = pred_valid
+)
+
+cat("\n=== Matriz de Confusão (absoluta) - Conjunto de Validação ===\n")
+cm_valid
+
+cat("\n=== Matriz de Confusão Relativa (proporção por linha/classe real) - Treino ===\n")
+prop.table(cm_train, 1)
+
+cat("\n=== Matriz de Confusão Relativa (proporção por linha/classe real) - Validação ===\n")
+prop.table(cm_valid, 1)
+
+cm_train_metrics <- confusionMatrix(
+    reference = train_normalized$label,
+    data = pred_train
+)
+
+cm_valid_metrics <- confusionMatrix(
+    reference = valid_normalized$label,
+    data = pred_valid
+)
+
+cat("\n=== Métricas de Avaliação - Conjunto de Treino ===\n")
+cm_train_metrics
+cat("\n=== Métricas de Avaliação - Conjunto de Validação ===\n")
+cm_valid_metrics
+
+```
+
+2.1 – O modelo baseline foi suficiente para resolver o problema? Quais métricas de avaliação vocês utilizaram para justificar a resposta?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+2.1 O modelo baseline apresentou bom desempenho na classificação de Fake News. No conjunto de validação, obteve Acurácia de 90,1% e
+Acurácia Balanceada de 89,4%, indicando bom desempenho mesmo em um conjunto originalmente desbalanceado. Além disso, apresentou
+Sensibilidade de 88,1% para identificar notícias falsas e Especificidade de 90,7% para notícias verdadeiras. Embora a Acurácia tenha
+reduzido de 96,9% no treinamento para 90,1% na validação, o modelo manteve boa capacidade de generalização.
+
+<!-- Fim da resposta -->
+
+# Tarefa 3 -- Soluções alternativas da Regressão Logística
+
+Implementem soluções alternativas baseadas em regressão logística, seja através da combinação das *features* **ou** de modelos polinomiais para melhorar o resultado do *baseline*. Comparem suas soluções reportando métricas de interesse no **conjunto de validação**.
+
+```{r atv3-code}
+
+# Modelos polinomiais: as 60 features são elevadas a graus crescentes usando a 
+# função de apoio disponível.
+# Usamos glmnet seguindo o exemplo de aula.
+grau_maximo <- 8
+
+ComparacaoPoly <- data.frame(
+  Grau                    = numeric(grau_maximo),
+  Accuracy_Treino         = numeric(grau_maximo),
+  Accuracy_Valid          = numeric(grau_maximo),
+  Kappa_Valid             = numeric(grau_maximo),
+  BalancedAccuracy_Treino = numeric(grau_maximo),
+  BalancedAccuracy_Valid  = numeric(grau_maximo),
+  Sensitivity_Valid       = numeric(grau_maximo),
+  Specificity_Valid       = numeric(grau_maximo)
+)
+
+modelos_poly <- list()
+
+for (d in 1:grau_maximo) {
+  hypothesis <- getHypothesis(features, target = "label", degree = d)
+
+  x_train <- model.matrix(hypothesis, train_normalized)[, -1]
+  x_valid <- model.matrix(hypothesis, valid_normalized)[, -1]
+  y_train <- train_normalized$label
+  y_valid <- valid_normalized$label
+
+  modelo_d <- glmnet(
+      x_train, y_train,
+      family = "binomial",
+      standardize = FALSE,
+      maxit = 1e5,
+      alpha = 0,
+      lambda = 1e-6
+  )
+
+  modelos_poly[[d]] <- modelo_d
+
+  train_pred <- predict(modelo_d, newx = x_train, type = "response")
+  valid_pred <- predict(modelo_d, newx = x_valid, type = "response")
+
+  pred_train <- factor(ifelse(train_pred >= 0.5, "true", "fake"), levels = levels(y_train))
+  pred_valid <- factor(ifelse(valid_pred >= 0.5, "true", "fake"), levels = levels(y_valid))
+
+  cm_train_d <- confusionMatrix(reference = y_train, data = pred_train)
+  cm_valid_d <- confusionMatrix(reference = y_valid, data = pred_valid)
+
+  ComparacaoPoly[d, ] <- c(
+      d,
+      cm_train_d$overall["Accuracy"],
+      cm_valid_d$overall["Accuracy"],
+      cm_valid_d$overall["Kappa"],
+      cm_train_d$byClass["Balanced Accuracy"],
+      cm_valid_d$byClass["Balanced Accuracy"],
+      cm_valid_d$byClass["Sensitivity"],
+      cm_valid_d$byClass["Specificity"]
+  )
+}
+
+ComparacaoPoly
+
+# Comparação direta com o baseline (Tarefa 2)
+comparacao <- data.frame(
+    Modelo = c("Baseline", paste0("Grau ", 1:grau_maximo)),
+    Accuracy = c(cm_valid_metrics$overall["Accuracy"], ComparacaoPoly$Accuracy_Valid),
+    Kappa = c(cm_valid_metrics$overall["Kappa"], ComparacaoPoly$Kappa_Valid),
+    BalancedAccuracy = c(cm_valid_metrics$byClass["Balanced Accuracy"], ComparacaoPoly$BalancedAccuracy_Valid),
+    Sensitivity = c(cm_valid_metrics$byClass["Sensitivity"], ComparacaoPoly$Sensitivity_Valid),
+    Specificity = c(cm_valid_metrics$byClass["Specificity"], ComparacaoPoly$Specificity_Valid)
+)
+
+comparacao
+
+# Curva de viés e variância (Acurácia Balanceada x grau do polinômio)
+ComparacaoPolyMelt <- melt(
+    ComparacaoPoly[, c("Grau", "BalancedAccuracy_Treino", "BalancedAccuracy_Valid")],
+    id = "Grau"
+)
+
+ggplot(data = ComparacaoPolyMelt, aes(x = Grau, y = value, colour = variable)) +
+  geom_line() +
+  geom_point() +
+  ggtitle("Curva de Viés/Variância -- Regressão Logística Polinomial") +
+  xlab("Grau do polinômio") +
+  ylab("Acurácia Balanceada") +
+  scale_x_continuous(breaks = 1:grau_maximo) +
+  scale_color_manual(values = c("BalancedAccuracy_Treino" = "red", "BalancedAccuracy_Valid" = "blue")) +
+  theme(legend.position = c(0.7, 0.3), legend.title = element_blank())
+
+# Melhor modelo = maior Acurácia Balanceada no conjunto de validação
+melhor_grau <- ComparacaoPoly$Grau[which.max(ComparacaoPoly$BalancedAccuracy_Valid)]
+cat("\nMelhor grau (maior Acurácia Balanceada na validação):", melhor_grau, "\n")
+
+melhor_modelo_poly  <- modelos_poly[[melhor_grau]]
+melhor_hypothesis   <- getHypothesis(features, target = "label", degree = melhor_grau)
+x_valid_melhor      <- model.matrix(melhor_hypothesis, valid_normalized)[, -1]
+valid_pred_melhor   <- predict(melhor_modelo_poly, newx = x_valid_melhor, type = "response")
+pred_valid_melhor   <- factor(ifelse(valid_pred_melhor >= 0.5, "true", "fake"), levels = levels(valid_normalized$label))
+
+cm_valid_melhor <- table(Real = valid_normalized$label, Previsto = pred_valid_melhor)
+
+cat("\nMatriz de Confusão Relativa - Melhor Modelo (grau", melhor_grau, ") - Validação\n")
+prop.table(cm_valid_melhor, 1)
+```
+
+3.1 – Quais foram os critérios utilizados para selecionar a técnica alternativa?
+
+3.2 – Alguma combinação gerou um impacto positivo ou negativo significativo no desempenho do modelo? Por quê?
+
+3.3 – Existe alguma relação entre viés e variância no seu modelo ao modificar o modelo (seja por combinações de *features* ou polinomiais)?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+3.1 A técnica alternativa escolhida foi a regressão polinomial, pois como as features disponibilizadas são anônimas a combinação de features seria arbitrária. Foram testados graus de 1 a 8, utilizando a função disponibilizada getHypothesis e a biblioteca glmnet.
+
+3.2 Sim. O grau 1 apresentou o melhor desempenho entre todos os graus testados, obtendo Accuracy de 90,75%, Balanced Accuracy de 90,86%, Kappa de 0,7386 e Sensitivity de 91,04%, superando o modelo baseline (Accuracy de 90,15%, Balanced Accuracy de 89,37%, Kappa de 0,7189 e Sensitivity de 88,06%). A partir do grau 2, o desempenho piorou de forma consistente, com a Balanced Accuracy caindo para 88,25% e se estabilizando perto de 87,50% a partir do grau 6, o que indica que elevar as features a potências não agrega informação relevante ao modelo, apenas um ganho marginal.
+
+3.3 Sim. A curva de viés e variância mostra que o viés já é baixo no grau 1 (com uma acurácia no conjunto de treino de quase 97%), de modo que o aumento do grau não reduz o viés, apenas eleva a variância do modelo. Isso é possível de se observar pela queda do desempenho de validação a partir do grau 2, enquanto a Accuracy de treino se mantém estável ou cresce ligeiramente, o que pode ser considerada uma região de overfitting e sem uma região de underfitting entre os graus testados.
+
+
+<!-- Fim da resposta -->
+
+# Tarefa 4 -- Regularização
+
+Escolham um dos modelos do item anterior e variem o fator de regularização ($\lambda$). Avaliem a curva de viés e variância e reportem a matriz de confusão relativa para o melhor modelo no conjunto de validação.
+
+```{r atv4-code}
+
+# Regularização aplicada ao modelo escolhido na Tarefa 3: regressão logística
+# polinomial de grau "melhor_grau" (grau 1, todas as 60 features)
+alpha <- 0  # alpha = 0 -> Ridge
+
+grau_escolhido <- melhor_grau
+hypothesis_reg <- getHypothesis(features, target = "label", degree = grau_escolhido)
+
+x_train <- model.matrix(hypothesis_reg, train_normalized)[, -1]
+x_valid <- model.matrix(hypothesis_reg, valid_normalized)[, -1]
+
+y_train <- train_normalized$label
+y_valid <- valid_normalized$label
+
+lambda_values <- c(0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000)
+
+ResultadoRegularizacao <- data.frame(
+    lambda                  = lambda_values,
+    Accuracy_Treino         = numeric(length(lambda_values)),
+    Accuracy_Valid          = numeric(length(lambda_values)),
+    BalancedAccuracy_Treino = numeric(length(lambda_values)),
+    BalancedAccuracy_Valid  = numeric(length(lambda_values))
+)
+
+modelos_lambda <- list()
+
+for (i in seq_along(lambda_values)) {
+    model <- glmnet(
+        x = x_train,
+        y = y_train,
+        family = "binomial",
+        alpha = alpha,
+        lambda = lambda_values[i]
+    )
+
+    modelos_lambda[[i]] <- model
+
+    metrics <- function_valid_metrics_glmnet(
+        modelo = model,
+        x_train = x_train,
+        y_train = y_train,
+        x_valid = x_valid,
+        y_valid = y_valid
+    )
+
+    ResultadoRegularizacao$Accuracy_Treino[i]         <- metrics$train_metrics$overall["Accuracy"]
+    ResultadoRegularizacao$Accuracy_Valid[i]          <- metrics$valid_metrics$overall["Accuracy"]
+    ResultadoRegularizacao$BalancedAccuracy_Treino[i] <- metrics$train_metrics$byClass["Balanced Accuracy"]
+    ResultadoRegularizacao$BalancedAccuracy_Valid[i]  <- metrics$valid_metrics$byClass["Balanced Accuracy"]
+}
+
+cat("=== Métricas por valor de lambda ===\n")
+ResultadoRegularizacao
+
+# Curva de viés e variância (Acurácia Balanceada x lambda, em escala log)
+ResultadoRegularizacaoMelt <- melt(
+    ResultadoRegularizacao[, c("lambda", "BalancedAccuracy_Treino", "BalancedAccuracy_Valid")],
+    id = "lambda"
+)
+
+ggplot(data = ResultadoRegularizacaoMelt, aes(x = lambda, y = value, colour = variable)) +
+  geom_line() +
+  geom_point() +
+  scale_x_log10() +
+  ggtitle("Curva de Viés/Variância -- Regularização Ridge") +
+  xlab(expression(lambda)) +
+  ylab("Acurácia Balanceada") +
+  scale_color_manual(values = c("BalancedAccuracy_Treino" = "red", "BalancedAccuracy_Valid" = "blue")) +
+  theme(legend.position = c(0.25, 0.3), legend.title = element_blank())
+
+# Melhor lambda = maior Acurácia Balanceada no conjunto de validação
+best_index  <- which.max(ResultadoRegularizacao$BalancedAccuracy_Valid)
+best_lambda <- ResultadoRegularizacao$lambda[best_index]
+
+cat("\nMelhor lambda (maior Acurácia Balanceada na validação):", best_lambda, "\n")
+
+best_model <- modelos_lambda[[best_index]]
+
+valid_pred_best <- predict(best_model, newx = x_valid, type = "response")
+pred_valid_best  <- factor(ifelse(valid_pred_best >= 0.5, "true", "fake"), levels = levels(y_valid))
+
+cm_valid_best <- table(Real = y_valid, Previsto = pred_valid_best)
+
+cat("\n=== Matriz de Confusão Relativa - Melhor Lambda (", best_lambda, ") - Validação ===\n")
+prop.table(cm_valid_best, 1)
+
+best_metrics <- confusionMatrix(reference = y_valid, data = pred_valid_best)
+best_metrics
+
+```
+
+4.1 – Como a regularização afetou o desempenho do modelo?
+
+4.2 – Foi utilizada regularização Lasso ou Ridge? Por quê?
+
+4.3 – Houve um ponto ótimo onde o erro foi minimizado? Como vocês identificaram esse ponto?
+
+4.4 – Em quais regiões da curva de viés e variância foi possível identificar *underfitting* e *overfitting*?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+4.1 A regularização aplicada ao modelo polinomial de graul 1, escolhido na Tarefa 3 como melhor desempenho, manteve o desempenho estável para valores de lambda pequenos, entre 1e-05 a 1e-03, com a acurácia balanceada variando entre 89% e 91%. A partir de lambda = 0,1, o desempenho começa a degradar gradualmente e quando lambda >= 10 o modelo sofre uma queda acentuada, chegando a uma acurácia balanceada de 50% para lambda entre 100-1000, o que é equivalente a uma previsão aleatória.
+
+4.2 Foi utilizada a regularização Ridge (alpha = 0 no glmnet), pois o objetivo era controlar a magnitude dos coeficientes do modelo com todas as 60 features (grau 1, escolhido na Tarefa 3) sem eliminar variáveis por completo, diferentemente do Lasso, que zeraria coeficientes e produziria um efeito de seleção de features.
+
+4.3 Sim. Foi identificado um ponto ótimo para o fator de regularização. O melhor desempenho ocorreu para lambda = 0.0001, que apresentou a maior acurácia balanceada no conjunto de validação (90,86%), coincidindo com o modelo de grau 1 sem regularização relevante da Tarefa 3. Esse valor foi escolhido comparando o desempenho obtido para todos os valores de lambda testados e selecionando aquele que apresentou a maior acurácia balanceada na validação.
+
+4.4 A curva de viés e variância mostra as três regiões: 
+- Leve overfitting para lambda muito pequeno (1e-05), onde o treino supera a validação em quase 10%; 
+- Desempenho ótimo entre lambda = 1e-04 e 1e-03, onde treino e validação ficam próximos e altos;
+- Underfitting progressivo a partir de lambda = 1, tornando-se severo em lambda >= 10, onde ambas as curvas convergem para aproximadamente 50% de acurácia balanceada, evidenciando que a penalização excessiva elimina a capacidade preditiva do modelo.
+
+<!-- Fim da resposta -->
+
+# Tarefa 5 -- Árvore de Decisão
+
+Treinem um modelo *baseline 2* de árvore de decisão **todas as features disponíveis**.
+
+```{r atv5-code}
+
+tree_model <- rpart(
+    label ~ .,
+    data = train_smote,
+    method = "class"
+)
+
+pred_train <- predict(tree_model, train_smote, type = "class")
+pred_valid <- predict(tree_model, valid_data, type = "class")
+
+cm_train <- confusionMatrix(pred_train, train_smote$label)
+cm_valid <- confusionMatrix(pred_valid, valid_data$label)
+
+train_metrics <- calculateMetrics(cm_train$table)
+valid_metrics <- calculateMetrics(cm_valid$table)
+
+cat("\n=== Matriz de Confusão (absoluta) - Conjunto de Treino ===\n")
+cm_train
+
+cat("\n=== Métricas do Conjunto de Treino ===\n")
+train_metrics
+
+cat("\n=== Matriz de Confusão (absoluta) - Conjunto de Validação ===\n")
+cm_valid
+
+cat("\n=== Métricas do Conjunto de Validação ===\n")
+valid_metrics
+
+```
+
+5.1 – O modelo *baseline 2* foi suficiente para resolver o problema? Quais métricas de avaliação vocês utilizaram para justificar a resposta?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+5.1 O modelo baseline 2 baseado em árvore de decisão apresentou um desempenho satisfatório na tarefa de classificação de notícias falsas, indicando que foi capaz de aprender padrões relevantes do conjunto de dados. No conjunto de validação, o modelo obteve 86,0% de acurácia e 81,2% de acurácia balanceada (métricas simétricas, independentes de qual classe é considerada positiva). Considerando "fake" como classe positiva (conforme o objeto cm_valid gerado pelo caret), o modelo obteve Sensitivity de 73,1% e Specificity de 89,2%, ou seja, identificou corretamente 73,1% das notícias falsas. Já a função calculateMetrics(), fornecida no material de apoio, calcula Precision, Recall e F1 tomando "true" como classe positiva, resultando em 93,0% de precisão, 89,2% de recall e 91,1% de F1-score para a identificação de notícias verdadeiras. Esses resultados mostram que o modelo tem bom desempenho geral, mas ainda erra uma parcela relevante das notícias falsas (Sensitivity de apenas 73,1% para "fake"), o que é particularmente relevante dado que o objetivo do trabalho é a detecção de fake news. Houve também uma queda de desempenho em relação ao conjunto de treinamento (92,6% de acurácia e 92,7% de acurácia balanceada), indicando um certo grau de overfitting. Assim, o baseline 2 é suficiente como um modelo inicial para o problema, porém ainda há espaço para melhorias.
+
+<!-- Fim da resposta -->
+
+# Tarefa 6 -- Profundidade da Árvore de Decisão
+
+Treinem árvores de decisão variando a profundidade máxima. Mostrem a curva de viés e variância, no qual o eixo X é a profundidade e o eixo Y é o erro ou uma métrica de interesse.
+
+```{r atv6-code}
+
+depths <- 1:15
+
+results <- data.frame(
+    depth = depths,
+    train_balacc = NA,
+    valid_balacc = NA
+)
+
+# Loop para treinar modelos com diferentes profundidades e calcular métricas
+# minsplit=2 e cp=0.0 Mesma configuração usada no Módulo 4.1 de Ex07
+for(i in seq_along(depths)){
+    model <- rpart(
+        label ~ .,
+        data = train_smote,
+        method = "class",
+        control = rpart.control(
+            minsplit = 2,
+            cp = 0.0,
+            maxdepth = depths[i],
+            xval = 0
+        )
+    )
+
+    pred_train <- predict(
+        model,
+        train_smote,
+        type = "class"
+    )
+
+    pred_valid <- predict(
+        model,
+        valid_data,
+        type = "class"
+    )
+
+    cm_train <- confusionMatrix(
+        pred_train,
+        train_smote$label
+    )
+
+    cm_valid <- confusionMatrix(
+        pred_valid,
+        valid_data$label
+    )
+
+    results$train_balacc[i] <- calculateMetrics(cm_train$table)["BalAcc"]
+    results$valid_balacc[i] <- calculateMetrics(cm_valid$table)["BalAcc"]
+}
+
+results
+
+# Gerando o gráfico de viés e variância
+plot(
+    results$depth,
+    results$train_balacc,
+    type = "b",
+    pch = 19,
+    ylim = c(0.5,1),
+    xlab = "Profundidade",
+    ylab = "Balanced Accuracy"
+)
+
+lines(
+    results$depth,
+    results$valid_balacc,
+    type = "b",
+    pch = 17,
+    col = "red"
+)
+
+legend(
+    "bottomright",
+    legend = c("Treino","Validação"),
+    col = c("black","red"),
+    pch = c(19,17)
+)
+
+# Melhor profundidade baseada na maior Balanced Accuracy no conjunto de validação
+best_depth <- results$depth[
+    which.max(results$valid_balacc)
+]
+
+best_depth
+
+# Trinamento do modelo final com a melhor profundidade
+best_tree <- rpart(
+    label ~ .,
+    data = train_smote,
+    method = "class",
+    control = rpart.control(
+        minsplit = 2,
+        cp = 0.0,
+        maxdepth = best_depth,
+        xval = 0
+    )
+)
+
+# Predição no conjunto de validação
+pred_best <- predict(
+    best_tree,
+    valid_data,
+    type = "class"
+)
+
+cm_best <- table(
+    Real = valid_data$label,
+    Previsto = pred_best
+)
+
+confusionMatrix(
+    pred_best,
+    valid_data$label
+)
+
+```
+
+6.1 – Como a profundidade afetou o desempenho do modelo?
+
+6.2 – Houve um ponto ótimo onde o erro foi minimizado? Como vocês identificaram esse ponto?
+
+6.3 – Em quais regiões da curva de viés e variância foi possível identificar *underfitting* e *overfitting*?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+6.1 A profundidade da árvore influenciou diretamente o desempenho do modelo. Nas menores profundidades (1 e 2), a Balanced Accuracy foi baixa tanto no treinamento quanto na validação, indicando que a árvore era muito simples para representar os padrões dos dados. Conforme a profundidade aumentou, o desempenho melhorou, atingindo o melhor resultado na profundidade 4, com Balanced Accuracy de 0.9188 no treinamento e 0.8321 na validação. A partir desse ponto, o desempenho no treinamento continuou subindo de forma constante, chegando próximo a 0,98 na profundidade 15, enquanto o desempenho na validação oscilou e se manteve abaixo do pico, entre 0,79 e 0,82, indicando perda de capacidade de generalização.
+
+6.2 Sim. O ponto ótimo foi identificado na profundidade 4, pois foi nesse valor que a Balanced Accuracy no conjunto de validação atingiu seu maior valor (0,8321). Como o objetivo é maximizar o desempenho em dados não utilizados no treinamento, a escolha foi baseada na métrica obtida no conjunto de validação e não no conjunto de treinamento. A árvore treinada com essa profundidade apresentou uma acurácia de 86,6% e uma Balanced Accuracy de 83,2% na validação, sendo escolhida como o melhor modelo entre os testados.
+
+6.3 Foi possível identificar três regiões distintas na curva:
+
+- Underfitting: ocorreu nas menores profundidades (1 e 2). Nessa região, tanto o desempenho no treinamento quanto na validação foram baixos, indicando que a árvore era pouco complexa e incapaz de representar adequadamente os padrões presentes nos dados.
+
+- Ótimo ajuste: foi observado na profundidade 4, onde a Balanced Accuracy no conjunto de validação atingiu seu valor máximo e a diferença entre treinamento e validação ainda era relativamente pequena. Esse ponto representa o melhor equilíbrio entre viés e variância.
+
+- Overfitting: ocorreu a partir da profundidade 5. O desempenho no treinamento continuou aumentando progressivamente (chegando a Balanced Accuracy próximo de 0,98 na profundidade 15), enquanto o desempenho na validação piorou e oscilou abaixo do pico da profundidade 4 (entre 0,79 e 0,82). Isso indica que a árvore passou a memorizar cada vez mais características específicas do conjunto de treinamento, ampliando a diferença entre treino e validação e reduzindo sua capacidade de generalização.
+
+<!-- Fim da resposta -->
+
+# Tarefa 7 -- Floresta Aleatórias
+
+Treinem *N* florestas aleatórias, variando o número de árvores. Mostrem a curva de viés e variância, na qual o eixo X é a profundidade e o eixo Y é o erro ou uma métrica de interesse.
+
+```{r atv7-code}
+
+n_trees <- c(1, 5, 10, 20, 50, 75, 100, 150, 200, 300, 500)
+
+results_rf <- data.frame(
+  ntree = integer(),
+  train_bal_acc = numeric(),
+  valid_bal_acc = numeric()
+)
+
+best_metric <- -Inf
+best_model  <- NULL
+
+# Inicializando o data frame para armazenar os resultados
+for (n in n_trees) {
+    model_rf <- randomForest(
+        label ~ .,
+        data = train_smote,
+        ntree = n
+    )
+
+    pred_train <- predict(model_rf, train_smote)
+    pred_valid <- predict(model_rf, valid_data)
+
+    cm_train <- confusionMatrix(pred_train, train_smote$label)
+    cm_valid <- confusionMatrix(pred_valid, valid_data$label)
+
+    train_metrics <- calculateMetrics(cm_train$table)
+    valid_metrics <- calculateMetrics(cm_valid$table)
+
+    results_rf <- rbind(
+        results_rf,
+        data.frame(
+            ntree = n,
+            train_bal_acc = train_metrics[["BalAcc"]],
+            valid_bal_acc = valid_metrics[["BalAcc"]]
+        )
+    )
+
+    if (valid_metrics[["BalAcc"]] > best_metric) {
+        best_metric <- valid_metrics[["BalAcc"]]
+        best_model <- model_rf
+    }
+}
+
+# Gerando o gráfico de viés e variância
+ggplot(results_rf, aes(x = ntree)) +
+    geom_line(aes(y=train_bal_acc,
+                  color="Treinamento"),
+                  linewidth=1) +
+    geom_line(aes(y=valid_bal_acc,
+                  color="Validação"),
+                  linewidth=1) +
+    geom_point(aes(y=train_bal_acc,
+                   color="Treinamento")) +
+    geom_point(aes(y=valid_bal_acc,
+                   color="Validação")) +
+    labs(
+        x="Número de árvores",
+        y="Balanced Accuracy",
+        color=""
+    ) +
+    theme_minimal()
+
+# Predição utilizando o melhor modelo
+best_pred <- predict(best_model, valid_data)
+
+# Matriz de confusão
+cm_best <- confusionMatrix(
+    best_pred,
+    valid_data$label
+)
+
+# Métricas
+best_metrics <- calculateMetrics(cm_best$table)
+
+best_metrics
+
+# Matriz de confusão
+cm_best
+
+# Matriz de confusão relativa
+prop.table(cm_best$table, 1)
+
+```
+
+7.1 – Como a quantidade de árvores afetou o desempenho do modelo?
+
+7.2 – Houve um ponto ótimo onde o erro foi minimizado? Como vocês identificaram esse ponto?
+
+7.3 – Em quais regiões da curva de viés e variância foi possível identificar *underfitting* e *overfitting*?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+7.1 O aumento do número de árvores melhorou o desempenho da Random Forest nas primeiras configurações. A Balanced Accuracy no conjunto de 
+validação aumentou de aproximadamente 0.81 para cerca de 0.87 conforme o número de árvores cresceu. Após esse ponto, o desempenho permaneceu 
+praticamente estável, indicando que adicionar mais árvores trouxe poucos ganhos de desempenho.
+
+7.2 Sim. O melhor desempenho foi obtido com aproximadamente 150 árvores, onde a Balanced Accuracy no conjunto de validação atingiu cerca de 
+0.874. Esse ponto foi identificado comparando a Balanced Accuracy de todos os modelos treinados e escolhendo aquele que apresentou o maior 
+valor no conjunto de validação. Como o desempenho permaneceu praticamente constante a partir dessa quantidade de árvores, optou-se pelo menor 
+número de árvores que atingiu o melhor resultado.
+
+7.3 O underfitting foi observado nas primeiras configurações, principalmente com uma única árvore, quando o desempenho ainda era baixo tanto 
+no treinamento quanto na validação. À medida que o número de árvores aumentou, o modelo passou a generalizar melhor, atingindo seu melhor 
+desempenho entre aproximadamente 150 e 300 árvores. Não foi observado um overfitting significativo, pois o desempenho no conjunto de validação 
+permaneceu praticamente estável mesmo com o aumento do número de árvores, apresentando apenas uma pequena redução com 500 árvores.
+
+<!-- Fim da resposta -->
+
+# Tarefa 8 -- Feature Selection
+
+Explorem pelo menos dois subconjuntos de *features*
+
+```{r atv8-code}
+
+# Treinamento do modelo Random Forest com todas as features
+set.seed(42)
+
+best_ntree <- results_rf$ntree[
+    which.max(results_rf$valid_bal_acc)
+]
+
+rf_full <- randomForest(
+    label ~ .,
+    data = train_smote,
+    ntree = best_ntree,
+    importance = TRUE
+)
+
+feature_importance <- importance(rf_full)[,"MeanDecreaseGini"]
+
+feature_importance <- sort(
+    feature_importance,
+    decreasing = TRUE
+)
+
+features10 <- names(feature_importance)[1:10]
+features20 <- names(feature_importance)[1:20]
+
+# Formula para o modelo com 10 features mais importantes
+formula10 <- as.formula(
+    paste("label ~", paste(features10, collapse=" + "))
+)
+
+rf10 <- randomForest(
+    formula10,
+    data=train_smote,
+    ntree=best_ntree
+)
+
+# Formula para o modelo com 20 features mais importantes
+formula20 <- as.formula(
+    paste("label ~", paste(features20, collapse=" + "))
+)
+
+rf20 <- randomForest(
+    formula20,
+    data=train_smote,
+    ntree=best_ntree
+)
+
+# Predição no conjunto de validação
+pred10 <- predict(rf10, valid_data)
+
+cm10 <- confusionMatrix(
+    pred10,
+    valid_data$label
+)
+
+metrics10 <- calculateMetrics(cm10$table)
+
+# Predição no conjunto de validação
+pred20 <- predict(rf20, valid_data)
+
+cm20 <- confusionMatrix(
+    pred20,
+    valid_data$label
+)
+
+metrics20 <- calculateMetrics(cm20$table)
+
+# Comparação dos resultados
+results_fs <- data.frame(
+    Modelo = c("Top10","Top20"),
+    Precision = c(metrics10["Precision"], metrics20["Precision"]),
+    Recall = c(metrics10["Recall"], metrics20["Recall"]),
+    F1 = c(metrics10["F1"], metrics20["F1"]),
+    BalAcc = c(metrics10["BalAcc"], metrics20["BalAcc"])
+)
+
+results_fs
+
+cm20
+
+prop.table(cm20$table,1)
+
+```
+
+8.1 – Quais foram os critérios utilizados para selecionar a técnica alternativa?
+
+8.2 – Alguma combinação gerou um impacto positivo ou negativo significativo no desempenho do modelo? Por quê?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+8.1 Foi utilizada a técnica de feature selection baseada na importância das variáveis fornecida pela
+Random Forest por meio da métrica MeanDecreaseGini. Inicialmente, foi treinada uma floresta aleatória
+utilizando todas as features e, a partir da importância calculada, os atributos foram ordenados do mais
+para o menos relevante. Em seguida, foram construídos dois subconjuntos contendo as 10 e as 20 features
+mais importantes. Os modelos foram treinados utilizando o mesmo número de árvores definido como ótimo no 
+Exercício 7, permitindo avaliar exclusivamente o impacto da seleção de atributos no desempenho do classificador.
+
+8.2 Entre os subconjuntos avaliados, o modelo utilizando as 20 features mais importantes apresentou o melhor
+desempenho, alcançando Balanced Accuracy de aproximadamente 0,856, enquanto o modelo com apenas 10 features obteve
+Balanced Accuracy de aproximadamente 0,804. Apesar disso, ambos os modelos apresentaram desempenho inferior ao modelo
+treinado com todas as features no Exercício 7, que obteve Balanced Accuracy de aproximadamente 0,877.
+
+
+<!-- Fim da resposta -->
+
+# Tarefa 9 -- (Opcional) Ensembles
+
+Implementem manualmente um protocolo de *ensemble* (e.g., *Bagging*, *Pasting* ou *Random Forest*), ajustando os parâmetros dessas técnicas.
+
+```{r atv9-code}
+# Treinamento
+
+# Métricas de avaliaçao
+```
+
+9.1 – Qual foi o critério para a decisão da técnica utilizada?
+
+9.2 – O resultado foi melhor comparado com outros cenários já testados?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+<!-- Fim da resposta -->
+
+# Tarefa 10 -- (Opcional) XGBoost
+
+Implementem XGBoost, ajustando os parâmetros dessa técnica.
+
+```{r atv10-code}
+# Treinamento
+
+# Métricas de avaliaçao
+```
+
+10.1 – Qual foi o critério para a escolha de hiperparâmetros?
+
+10.2 – O resultado foi melhor comparado com outros cenários já testados?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+<!-- Fim da resposta -->
+
+# Tarefa 11 -- Conjunto de Teste
+
+Após identificar o melhor modelo, utilizem-no para fazer previsões no conjunto de teste e avaliem o seu desempenho.
+
+```{r atv11-code}
+# Predição no conjunto de teste
+
+# Métricas de avaliação
+```
+
+11.1 – Qual foi o critério adotado para definir o melhor modelo?
+
+11.2 – Como os resultados no conjunto de teste se comparam aos obtidos no conjunto de validação? Houve algum indício degradação ou melhora do modelo?
+
+11.4 – Expliquem a diferença entre os modelos e o porquê que estas diferenças levaram a resultados piores ou melhores.
+
+11.5 – Considerando as diferentes abordagens testadas, quais estratégias poderiam ser aplicadas para melhorar ainda mais o desempenho do modelo?
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+<!-- Fim da resposta -->
+
+# Observações Finais
+
+Justifiquem suas escolhas com base em evidências (métricas, gráficos, hipóteses teóricas).
+
+A clareza na comunicação dos resultados é mais importante do que a qualidade do modelo!

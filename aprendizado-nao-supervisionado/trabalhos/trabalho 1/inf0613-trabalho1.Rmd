@@ -1,0 +1,168 @@
+---
+title: INF0613 -- Aprendizado de Máquina Não Supervisionado
+output: pdf_document
+subtitle: Trabalho 1 - Regras de Associação
+author: 
+  - Anselmo Faria Alvarez Júnior
+  - Augusto José Mangini dos Santos
+  - Julio Cesar da Silva
+---
+
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = FALSE, message = FALSE, warning = FALSE, tidy = FALSE)
+options(digits = 3)
+```
+
+Neste primeiro trabalho, vamos minerar Regras de Associação em uma base de dados que contém as vendas de uma padaria. A base de dados está disponível na página da disciplina no Moodle (arquivo `bakery.csv`).
+
+# Atividade 0 -- Configurando o ambiente
+Antes de começar a implementação do seu trabalho configure o _workspace_ e importe todos os pacotes:
+
+```{r atv0-code}
+# Adicione os demais pacotes usados
+# Bibliotecas usadas neste trabalho:
+library(arules)
+
+# Configurando ambiente de trabalho:
+setwd("C:/Users/augus/OneDrive/Área de Trabalho/Cursos/mdc/aprendizado-nao-supervisionado/trabalhos/trabalho 1")
+```
+
+
+# Atividade 1 -- Análise Exploratória da Base de Dados (*3,0 pts*)
+
+Dado um caminho para uma base de dados, leia as transações e faça uma análise Exploratória sobre elas. Use as funções `summary`,  `inspect` e `itemFrequencyPlot`. Na função `inspect`, limite sua análise às 10 primeiras transações e na função `itemFrequencyPlot` gere um gráfico com a frequência relativa dos 30 itens mais frequentes. 
+
+```{r atv1-code}
+# Ler transações
+dados <- read.transactions("bakery.csv", format = "basket", sep = ",")
+
+# Visualizando transações
+inspect(dados[1:10])
+
+# Sumário da base
+summary(dados)
+
+# Analisando a frequência dos itens 
+itemFrequencyPlot(dados, topN = 30, type = "relative")
+
+```
+
+
+## Análise 
+
+a) Descreva a base de dados discutindo os resultados das funções acima. 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Analisando os dados principalmente pela função summary, podemos ver que a maioria das transações do conjunto possui entre 2, 3 ou 4 produtos, sendo que a média é bem próxima de 3, com valor de 3,2, e a mediana é 3 items por transação, com 4.537 itens totais e 2.579 transações. Além disso, o café possui a maior frequência com vantagem, aparecendo 1.403 vezes. 
+<!-- Fim da resposta -->
+
+b) Ao gerarmos o gráfico de frequências, temos uma representação visual de uma informação já presente no resultado da função `summary`. Contudo, esse gráfico nos dá uma visão mais ampla da base. Assim, podemos ver a frequência de outros itens em relação aos 10 mais frequentes. Quais informações podemos obter a partir desse gráfico (e da análise anterior) para nos ajudar na extração de regras de associação com o algoritmo `apriori`? Isto é, como a frequência dos itens pode afetar os parâmetros de configuração do algoritmo `apriori`? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Utilizando a função gráfica com o modo "relative" podemos observar que o café possui uma frequência relativa acima de 0,5, assim como o pão possui uma frequência acima de 0,3 e o chá uma frequência de aproximadamente 0,25. O princípio do algoritmo apriori assume que se um conjunto de itens é frequentes, todos os seus subconjuntos de itens serão frequentes também. Então se um item possui uma frequência relativa acima de 0,5 (nesse caso o café) e considerarmos um suporte mínimo de 0,5 nas regras, sabemos que todos os subconjuntos que possuem o café tendem a aparecer nas regras, o que pode ser bom ou ruim pois podem aparecer regras que não são interessantes devido a frequência alta desse item.
+<!-- Fim da resposta -->
+
+# Atividade 2 -- Minerando Regras (*3,5 pts*)
+
+Use o algoritmo `apriori` para minerar regras na base de dados fornecida. Experimente com pelo menos *3 conjuntos* de valores diferentes de suporte e confiança para encontrar regras de associação. Imprima as cinco regras com o maior confiança de cada conjunto escolhido.  Lembre-se de usar seu conhecimento sobre a base, obtido na questão anterior, para a escolha dos valores de suporte e confiança.
+
+```{r atv2-code}
+# Conjunto 1: suporte = 0.01 e confiança = 0.2
+regras_1 <- apriori(
+  dados,
+  parameter = list(
+    supp = 0.01,
+    conf = 0.2,
+    minlen = 2
+  )
+)
+regras_1 <- sort(regras_1, decrasing = TRUE, by = "confidence")
+inspect(regras_1[1:5])
+
+# Conjunto 2: suporte = 0.02 e confiança = 0.4   
+regras_2 <- apriori(
+  dados,
+  parameter = list(
+    supp = 0.02,
+    conf = 0.4,
+    minlen = 2
+  )
+)
+regras_2 <- sort(regras_2, decrasing = TRUE, by = "confidence")
+inspect(regras_2[1:5])
+
+# Conjunto 3: suporte = 0.05 e confiança = 0.5
+regras_3 <- apriori(
+  dados,
+  parameter = list(
+    supp = 0.05,
+    conf = 0.5,
+    minlen = 2
+  )
+)
+regras_3 <- sort(regras_3, decrasing = TRUE, by = "confidence")
+inspect(regras_3[1:5])
+```
+
+## Análises 
+a) Quais as regras mais interessantes geradas a partir dessa base? Justifique.
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Primeiro ponto a ser observado é que todas as regras mostradas, nas três combinações possíveis, possuem o lado direito igual ao café, o que é esperado pois sua frequência relativa no conjunto total é maior que 0,5. No conjunto 1 foi escolhido valores de suporte e confiança mais abrangentes para uma exploração inicial (progredindo nos conjuntos 2 e 3 para valores menos abrangentes). Nesse caso, a regra 1 ({Toast} => {Coffee}) apresenta uma confiança significativamente maior que as outras, com valor de 0,72, além de um suporte maior também que os outros (0,0399) e um lift de 1,32, mostrando que essa regra é interessante e além da coincidência estatística e faz sentido com o mundo real pois a combinação torrada e café é algo comum no café da manhã de diferentes países do mundo.
+
+No conjunto 2, além da primeira regra que se repetiu, a segunda regra de {Spanish Brunch} => {Coffee} é a única regra com suporte acima do limite colocado aqui (0.0252)  e que possui uma confiança acima de 0,6 (0.607), que também indica um padrão cultural de alimentação (como uma estratégia de combo, por exemplo) e pode ser relevante. As outras 3 regras seguintes também estão no conjunto 3, e a regra 1 também é a mesma do conjunto anterior.
+
+No conjunto 3, foram escolhidos os valores mais restritivos de confiança, pois não havia nenhuma regra com um suporte acima de 0,05 que tivesse uma confiança acima de 0,6. Nesse caso, a regra mais relevante é a de {Sandwich} => {Coffee}, com valores de suporte de 0.0768 e confiança de 0.598, indicando também um padrão de alimentação comum no mundo, num possível lanche da tarde por exemplo.
+
+Portanto, pode-se considerar que a regra {Toast} => {Coffee} é a regra mais relevante do ponto de vista de confiança e lift, seguidas das regras mencionadas no conjunto 3 (mais restritivo) e conjunto 2. Observa-se nesses conjuntos que a maioria das regras envolvem algum tipo de alimento de consumo rápido associado ao café, o que faz sentido em observações reais.
+<!-- Fim da resposta -->
+
+# Atividade 3 -- Medidas de Interesse (*3,5 pts*)
+
+Vimos na aula que, mesmo após as podas do algoritmo `apriori`, ainda temos algumas regras com características indesejáveis como redundâncias e dependência estatística negativa. Também vimos algumas medidas que nos ajudam a analisar melhor essas regras como o lift, a convicção e a razão de chances. Nesta questão, escolha um dos conjuntos de regras geradas na atividade anterior e o analise usando essas medidas. Compute as três medidas para o conjunto escolhido com a função `interestMeasure` e experimente ordenar as regras com cada uma das novas medidas.
+
+Dica: para adicionar as medidas em um conjunto de regras qualquer, você pode utilizar o comando `cbind` e a função `quality`:
+```
+quality(regras) <- cbind(quality(regras), interestMeasure(regras, measure=c("conviction", "oddsRatio"), 
+                                          transactions = transacoes))
+```
+
+
+```{r atv3-code}
+# Compute as medidas de interesse 
+medidas <- interestMeasure(
+  regras_1,
+  c("lift", "conviction", "oddsRatio"),
+  dados
+)
+quality(regras_1) <- cbind(quality(regras_1), interestMeasure(regras_1, measure=c("conviction", "oddsRatio"),transactions = dados))
+
+# Apresente as regras ordenadas por lift
+regras_1_lift <- sort(regras_1, decrasing = TRUE, by = "lift")
+inspect(regras_1_lift[1:20])
+
+# Apresente as regras ordenadas por convicção
+regras_1_convic <- sort(regras_1, decrasing = TRUE, by = "conviction")
+inspect(regras_1_convic[1:20])
+
+# Apresente as regras ordenadas por razão de chances
+regras_1_chances <- sort(regras_1, decrasing = TRUE, by = "oddsRatio")
+inspect(regras_1_chances[1:20])
+
+```
+
+
+## Análise 
+a) Quais as regras mais interessantes do conjunto? Justifique.
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Foi escolhido o conjunto 1 pois é o menos restritivo e possui o maior número de regras para serem analisadas. Portanto nesse caso:
+
+1) Lift: A métrica de lift mede quão independetes são os dois lados da regra e quanto maior o número de lift mais interessante é a regra, pois indica que L aumentou R em uma taxa maior (considerando a regra como L => R). Com isso, a regra mais interessante que possui um lift significativamente maior que as outras (2,25) é a regra de {Coke} => {Sandwich}, indicando que existe uma forte dependência que leva pessoas que comprar coca-cola também comprarem sanduíche, o que faz sentido em relação a padrões alimentares observados.
+
+2) Convicção: A medida de convicção é definida como "relação da frequência esperada que L ocorre sem R em uma regra de associação" e pela literatura, valores de convicção entre 1 e 5 são os mais interessantes pois valores acima de 5 apresentam informações óbvias e ilusórias, sendo que valores menores do que 1 para essa medida indicam que a ocorrência de L reduz a probabilidade de R em relação ao acaso. Nesse caso, a melhor regra é a mesma escolhida na questão 2,{Toast} => {Coffee}, com uma convicção de 1,63. Aqui, a ordenação por convicção fica parecida com a ordenção por confiança, sendo que os valores de confiança nesse conjunto a partir da vigésima colocação já se aproximam de 1.
+
+3) Razão de Chances: Nesse caso, a vantagem dessa medida é ser simétrica (não depende da direção da regra) e valores maiores do que 1 implicam chances maiores de R ocorrer na presença de L em oposição ao seu complemento e se for menor que 1 indica que são mutualmente excludentes. Com isso, a melhor regra seria a mesma do caso do Lift. Outras regras aqui que podem ser interessantes são {Coffee, Soup} => {Sandwich} e {Coffee, Juice} => {Cookies}.
+<!-- Fim da resposta -->
+

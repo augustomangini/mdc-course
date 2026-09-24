@@ -1,0 +1,248 @@
+> # analyze rankings
+> results_combmin <- list(
++   analyse_rankings(r_combmin_biloba, ground_truth_biloba),
++   analyse_rankings(r_combmin_europaea, ground_truth_europaea),
++   analyse_rankings(r_combmin_ilex, ground_truth_ilex),
++   analyse_rankings(r_combmin_monogyna, ground_truth_monogyna),
++   analyse_rankings(r_combmin_regia, ground_truth_regia)
++ ); results_combmin
+Top  5 : Precisão =  0.4 , Revocação:  0.2 , Taxa F1:  0.266666666666667 , Precisão Média:  0.3 
+Top  10 : Precisão =  0.4 , Revocação:  0.4 , Taxa F1:  0.4 , Precisão Média:  0.244444444444444 
+Top  15 : Precisão =  0.466666666666667 , Revocação:  0.7 , Taxa F1:  0.56 , Precisão Média:  0.375634920634921 
+Top  20 : Precisão =  0.45 , Revocação:  0.9 , Taxa F1:  0.6 , Precisão Média:  0.470634920634921 
+Top  5 : Precisão =  1 , Revocação:  0.5 , Taxa F1:  0.666666666666667 , Precisão Média:  1 
+Top  10 : Precisão =  1 , Revocação:  1 , Taxa F1:  1 , Precisão Média:  1 
+Top  15 : Precisão =  0.666666666666667 , Revocação:  1 , Taxa F1:  0.8 , Precisão Média:  1 
+Top  20 : Precisão =  0.5 , Revocação:  1 , Taxa F1:  0.666666666666667 , Precisão Média:  1 
+Top  5 : Precisão =  0.8 , Revocação:  0.4 , Taxa F1:  0.533333333333333 , Precisão Média:  0.643333333333333 
+Top  10 : Precisão =  0.5 , Revocação:  0.5 , Taxa F1:  0.5 , Precisão Média:  0.377222222222222 
+Top  15 : Precisão =  0.4 , Revocação:  0.6 , Taxa F1:  0.48 , Precisão Média:  0.427222222222222 
+Top  20 : Precisão =  0.3 , Revocação:  0.6 , Taxa F1:  0.4 , Precisão Média:  0.427222222222222 
+Top  5 : Precisão =  0.6 , Revocação:  0.3 , Taxa F1:  0.4 , Precisão Média:  0.483333333333333 
+Top  10 : Precisão =  0.5 , Revocação:  0.5 , Taxa F1:  0.5 , Precisão Média:  0.354365079365079 
+Top  15 : Precisão =  0.6 , Revocação:  0.9 , Taxa F1:  0.72 , Precisão Média:  0.588782328782329 
+Top  20 : Precisão =  0.45 , Revocação:  0.9 , Taxa F1:  0.6 , Precisão Média:  0.588782328782329 
+Top  5 : Precisão =  0.4 , Revocação:  0.2 , Taxa F1:  0.266666666666667 , Precisão Média:  0.333333333333333 
+Top  10 : Precisão =  0.2 , Revocação:  0.2 , Taxa F1:  0.2 , Precisão Média:  0.166666666666667 
+Top  15 : Precisão =  0.333333333333333 , Revocação:  0.5 , Taxa F1:  0.4 , Precisão Média:  0.26042291042291 
+Top  20 : Precisão =  0.3 , Revocação:  0.6 , Taxa F1:  0.4 , Precisão Média:  0.29042291042291 
+[[1]]
+  top  precisao revocacao   taxa_f1  prec_med
+1   5 0.4000000       0.2 0.2666667 0.3000000
+2  10 0.4000000       0.4 0.4000000 0.2444444
+3  15 0.4666667       0.7 0.5600000 0.3756349
+4  20 0.4500000       0.9 0.6000000 0.4706349
+
+[[2]]
+  top  precisao revocacao   taxa_f1 prec_med
+1   5 1.0000000       0.5 0.6666667        1
+2  10 1.0000000       1.0 1.0000000        1
+3  15 0.6666667       1.0 0.8000000        1
+4  20 0.5000000       1.0 0.6666667        1
+
+[[3]]
+  top precisao revocacao   taxa_f1  prec_med
+1   5      0.8       0.4 0.5333333 0.6433333
+2  10      0.5       0.5 0.5000000 0.3772222
+3  15      0.4       0.6 0.4800000 0.4272222
+4  20      0.3       0.6 0.4000000 0.4272222
+
+[[4]]
+  top precisao revocacao taxa_f1  prec_med
+1   5     0.60       0.3    0.40 0.4833333
+2  10     0.50       0.5    0.50 0.3543651
+3  15     0.60       0.9    0.72 0.5887823
+4  20     0.45       0.9    0.60 0.5887823
+
+[[5]]
+  top  precisao revocacao   taxa_f1  prec_med
+1   5 0.4000000       0.2 0.2666667 0.3333333
+2  10 0.2000000       0.2 0.2000000 0.1666667
+3  15 0.3333333       0.5 0.4000000 0.2604229
+4  20 0.3000000       0.6 0.4000000 0.2904229
+
+> results_combmax <- list(
++   analyse_rankings(r_combmax_biloba, ground_truth_biloba),
++   analyse_rankings(r_combmax_europaea, ground_truth_europaea),
++   analyse_rankings(r_combmax_ilex, ground_truth_ilex),
++   analyse_rankings(r_combmax_monogyna, ground_truth_monogyna),
++   analyse_rankings(r_combmax_regia, ground_truth_regia)
++ ); results_combmax
+Top  5 : Precisão =  1 , Revocação:  0.5 , Taxa F1:  0.666666666666667 , Precisão Média:  1 
+Top  10 : Precisão =  0.8 , Revocação:  0.8 , Taxa F1:  0.8 , Precisão Média:  0.8 
+Top  15 : Precisão =  0.533333333333333 , Revocação:  0.8 , Taxa F1:  0.64 , Precisão Média:  0.8 
+Top  20 : Precisão =  0.4 , Revocação:  0.8 , Taxa F1:  0.533333333333333 , Precisão Média:  0.8 
+Top  5 : Precisão =  1 , Revocação:  0.5 , Taxa F1:  0.666666666666667 , Precisão Média:  1 
+Top  10 : Precisão =  0.9 , Revocação:  0.9 , Taxa F1:  0.9 , Precisão Média:  0.9 
+Top  15 : Precisão =  0.666666666666667 , Revocação:  1 , Taxa F1:  0.8 , Precisão Média:  0.990909090909091 
+Top  20 : Precisão =  0.5 , Revocação:  1 , Taxa F1:  0.666666666666667 , Precisão Média:  0.990909090909091 
+Top  5 : Precisão =  0.6 , Revocação:  0.3 , Taxa F1:  0.4 , Precisão Média:  0.52 
+Top  10 : Precisão =  0.5 , Revocação:  0.5 , Taxa F1:  0.5 , Precisão Média:  0.382222222222222 
+Top  15 : Precisão =  0.4 , Revocação:  0.6 , Taxa F1:  0.48 , Precisão Média:  0.432222222222222 
+Top  20 : Precisão =  0.4 , Revocação:  0.8 , Taxa F1:  0.533333333333333 , Precisão Média:  0.50906432748538 
+Top  5 : Precisão =  0.8 , Revocação:  0.4 , Taxa F1:  0.533333333333333 , Precisão Média:  0.8 
+Top  10 : Precisão =  0.6 , Revocação:  0.6 , Taxa F1:  0.6 , Precisão Média:  0.569047619047619 
+Top  15 : Precisão =  0.6 , Revocação:  0.9 , Taxa F1:  0.72 , Precisão Média:  0.754222444222444 
+Top  20 : Precisão =  0.5 , Revocação:  1 , Taxa F1:  0.666666666666667 , Precisão Média:  0.816722444222444 
+Top  5 : Precisão =  0.8 , Revocação:  0.4 , Taxa F1:  0.533333333333333 , Precisão Média:  0.8 
+Top  10 : Precisão =  0.6 , Revocação:  0.6 , Taxa F1:  0.6 , Precisão Média:  0.558333333333333 
+Top  15 : Precisão =  0.533333333333333 , Revocação:  0.8 , Taxa F1:  0.64 , Precisão Média:  0.683508158508159 
+Top  20 : Precisão =  0.45 , Revocação:  0.9 , Taxa F1:  0.6 , Precisão Média:  0.736449334978747 
+[[1]]
+  top  precisao revocacao   taxa_f1 prec_med
+1   5 1.0000000       0.5 0.6666667      1.0
+2  10 0.8000000       0.8 0.8000000      0.8
+3  15 0.5333333       0.8 0.6400000      0.8
+4  20 0.4000000       0.8 0.5333333      0.8
+
+[[2]]
+  top  precisao revocacao   taxa_f1  prec_med
+1   5 1.0000000       0.5 0.6666667 1.0000000
+2  10 0.9000000       0.9 0.9000000 0.9000000
+3  15 0.6666667       1.0 0.8000000 0.9909091
+4  20 0.5000000       1.0 0.6666667 0.9909091
+
+[[3]]
+  top precisao revocacao   taxa_f1  prec_med
+1   5      0.6       0.3 0.4000000 0.5200000
+2  10      0.5       0.5 0.5000000 0.3822222
+3  15      0.4       0.6 0.4800000 0.4322222
+4  20      0.4       0.8 0.5333333 0.5090643
+
+[[4]]
+  top precisao revocacao   taxa_f1  prec_med
+1   5      0.8       0.4 0.5333333 0.8000000
+2  10      0.6       0.6 0.6000000 0.5690476
+3  15      0.6       0.9 0.7200000 0.7542224
+4  20      0.5       1.0 0.6666667 0.8167224
+
+[[5]]
+  top  precisao revocacao   taxa_f1  prec_med
+1   5 0.8000000       0.4 0.5333333 0.8000000
+2  10 0.6000000       0.6 0.6000000 0.5583333
+3  15 0.5333333       0.8 0.6400000 0.6835082
+4  20 0.4500000       0.9 0.6000000 0.7364493
+
+> results_combsum <- list(
++   analyse_rankings(r_combsum_biloba, ground_truth_biloba),
++   analyse_rankings(r_combsum_europaea, ground_truth_europaea),
++   analyse_rankings(r_combsum_ilex, ground_truth_ilex),
++   analyse_rankings(r_combsum_monogyna, ground_truth_monogyna),
++   analyse_rankings(r_combsum_regia, ground_truth_regia)
++ ); results_combsum
+Top  5 : Precisão =  1 , Revocação:  0.5 , Taxa F1:  0.666666666666667 , Precisão Média:  1 
+Top  10 : Precisão =  0.8 , Revocação:  0.8 , Taxa F1:  0.8 , Precisão Média:  0.8 
+Top  15 : Precisão =  0.6 , Revocação:  0.9 , Taxa F1:  0.72 , Precisão Média:  0.864285714285714 
+Top  20 : Precisão =  0.45 , Revocação:  0.9 , Taxa F1:  0.6 , Precisão Média:  0.864285714285714 
+Top  5 : Precisão =  1 , Revocação:  0.5 , Taxa F1:  0.666666666666667 , Precisão Média:  1 
+Top  10 : Precisão =  1 , Revocação:  1 , Taxa F1:  1 , Precisão Média:  1 
+Top  15 : Precisão =  0.666666666666667 , Revocação:  1 , Taxa F1:  0.8 , Precisão Média:  1 
+Top  20 : Precisão =  0.5 , Revocação:  1 , Taxa F1:  0.666666666666667 , Precisão Média:  1 
+Top  5 : Precisão =  0.6 , Revocação:  0.3 , Taxa F1:  0.4 , Precisão Média:  0.6 
+Top  10 : Precisão =  0.4 , Revocação:  0.4 , Taxa F1:  0.4 , Precisão Média:  0.366666666666667 
+Top  15 : Precisão =  0.4 , Revocação:  0.6 , Taxa F1:  0.48 , Precisão Média:  0.454487179487179 
+Top  20 : Precisão =  0.3 , Revocação:  0.6 , Taxa F1:  0.4 , Precisão Média:  0.454487179487179 
+Top  5 : Precisão =  1 , Revocação:  0.5 , Taxa F1:  0.666666666666667 , Precisão Média:  1 
+Top  10 : Precisão =  0.7 , Revocação:  0.7 , Taxa F1:  0.7 , Precisão Média:  0.7 
+Top  15 : Precisão =  0.6 , Revocação:  0.9 , Taxa F1:  0.72 , Precisão Média:  0.841958041958042 
+Top  20 : Precisão =  0.5 , Revocação:  1 , Taxa F1:  0.666666666666667 , Precisão Média:  0.900781571369807 
+Top  5 : Precisão =  0.8 , Revocação:  0.4 , Taxa F1:  0.533333333333333 , Precisão Média:  0.8 
+Top  10 : Precisão =  0.7 , Revocação:  0.7 , Taxa F1:  0.7 , Precisão Média:  0.628333333333333 
+Top  15 : Precisão =  0.533333333333333 , Revocação:  0.8 , Taxa F1:  0.64 , Precisão Média:  0.689871794871795 
+Top  20 : Precisão =  0.45 , Revocação:  0.9 , Taxa F1:  0.6 , Precisão Média:  0.742812971342383 
+[[1]]
+  top precisao revocacao   taxa_f1  prec_med
+1   5     1.00       0.5 0.6666667 1.0000000
+2  10     0.80       0.8 0.8000000 0.8000000
+3  15     0.60       0.9 0.7200000 0.8642857
+4  20     0.45       0.9 0.6000000 0.8642857
+
+[[2]]
+  top  precisao revocacao   taxa_f1 prec_med
+1   5 1.0000000       0.5 0.6666667        1
+2  10 1.0000000       1.0 1.0000000        1
+3  15 0.6666667       1.0 0.8000000        1
+4  20 0.5000000       1.0 0.6666667        1
+
+[[3]]
+  top precisao revocacao taxa_f1  prec_med
+1   5      0.6       0.3    0.40 0.6000000
+2  10      0.4       0.4    0.40 0.3666667
+3  15      0.4       0.6    0.48 0.4544872
+4  20      0.3       0.6    0.40 0.4544872
+
+[[4]]
+  top precisao revocacao   taxa_f1  prec_med
+1   5      1.0       0.5 0.6666667 1.0000000
+2  10      0.7       0.7 0.7000000 0.7000000
+3  15      0.6       0.9 0.7200000 0.8419580
+4  20      0.5       1.0 0.6666667 0.9007816
+
+[[5]]
+  top  precisao revocacao   taxa_f1  prec_med
+1   5 0.8000000       0.4 0.5333333 0.8000000
+2  10 0.7000000       0.7 0.7000000 0.6283333
+3  15 0.5333333       0.8 0.6400000 0.6898718
+4  20 0.4500000       0.9 0.6000000 0.7428130
+
+> results_borda <- list(
++   analyse_rankings(r_borda_biloba, ground_truth_biloba),
++   analyse_rankings(r_borda_europaea, ground_truth_europaea),
++   analyse_rankings(r_borda_ilex, ground_truth_ilex),
++   analyse_rankings(r_borda_monogyna, ground_truth_monogyna),
++   analyse_rankings(r_borda_regia, ground_truth_regia)
++ ); results_borda
+Top  5 : Precisão =  1 , Revocação:  0.5 , Taxa F1:  0.666666666666667 , Precisão Média:  1 
+Top  10 : Precisão =  0.7 , Revocação:  0.7 , Taxa F1:  0.7 , Precisão Média:  0.677777777777778 
+Top  15 : Precisão =  0.6 , Revocação:  0.9 , Taxa F1:  0.72 , Precisão Média:  0.810505050505051 
+Top  20 : Precisão =  0.45 , Revocação:  0.9 , Taxa F1:  0.6 , Precisão Média:  0.810505050505051 
+Top  5 : Precisão =  1 , Revocação:  0.5 , Taxa F1:  0.666666666666667 , Precisão Média:  1 
+Top  10 : Precisão =  1 , Revocação:  1 , Taxa F1:  1 , Precisão Média:  1 
+Top  15 : Precisão =  0.666666666666667 , Revocação:  1 , Taxa F1:  0.8 , Precisão Média:  1 
+Top  20 : Precisão =  0.5 , Revocação:  1 , Taxa F1:  0.666666666666667 , Precisão Média:  1 
+Top  5 : Precisão =  0.6 , Revocação:  0.3 , Taxa F1:  0.4 , Precisão Média:  0.6 
+Top  10 : Precisão =  0.4 , Revocação:  0.4 , Taxa F1:  0.4 , Precisão Média:  0.357142857142857 
+Top  15 : Precisão =  0.4 , Revocação:  0.6 , Taxa F1:  0.48 , Precisão Média:  0.435604395604396 
+Top  20 : Precisão =  0.4 , Revocação:  0.8 , Taxa F1:  0.533333333333333 , Precisão Média:  0.52145965876229 
+Top  5 : Precisão =  1 , Revocação:  0.5 , Taxa F1:  0.666666666666667 , Precisão Média:  1 
+Top  10 : Precisão =  0.8 , Revocação:  0.8 , Taxa F1:  0.8 , Precisão Média:  0.78 
+Top  15 : Precisão =  0.666666666666667 , Revocação:  1 , Taxa F1:  0.8 , Precisão Média:  0.945151515151515 
+Top  20 : Precisão =  0.5 , Revocação:  1 , Taxa F1:  0.666666666666667 , Precisão Média:  0.945151515151515 
+Top  5 : Precisão =  1 , Revocação:  0.5 , Taxa F1:  0.666666666666667 , Precisão Média:  1 
+Top  10 : Precisão =  0.7 , Revocação:  0.7 , Taxa F1:  0.7 , Precisão Média:  0.655714285714286 
+Top  15 : Precisão =  0.533333333333333 , Revocação:  0.8 , Taxa F1:  0.64 , Precisão Média:  0.712857142857143 
+Top  20 : Precisão =  0.45 , Revocação:  0.9 , Taxa F1:  0.6 , Precisão Média:  0.760225563909774 
+[[1]]
+  top precisao revocacao   taxa_f1  prec_med
+1   5     1.00       0.5 0.6666667 1.0000000
+2  10     0.70       0.7 0.7000000 0.6777778
+3  15     0.60       0.9 0.7200000 0.8105051
+4  20     0.45       0.9 0.6000000 0.8105051
+
+[[2]]
+  top  precisao revocacao   taxa_f1 prec_med
+1   5 1.0000000       0.5 0.6666667        1
+2  10 1.0000000       1.0 1.0000000        1
+3  15 0.6666667       1.0 0.8000000        1
+4  20 0.5000000       1.0 0.6666667        1
+
+[[3]]
+  top precisao revocacao   taxa_f1  prec_med
+1   5      0.6       0.3 0.4000000 0.6000000
+2  10      0.4       0.4 0.4000000 0.3571429
+3  15      0.4       0.6 0.4800000 0.4356044
+4  20      0.4       0.8 0.5333333 0.5214597
+
+[[4]]
+  top  precisao revocacao   taxa_f1  prec_med
+1   5 1.0000000       0.5 0.6666667 1.0000000
+2  10 0.8000000       0.8 0.8000000 0.7800000
+3  15 0.6666667       1.0 0.8000000 0.9451515
+4  20 0.5000000       1.0 0.6666667 0.9451515
+
+[[5]]
+  top  precisao revocacao   taxa_f1  prec_med
+1   5 1.0000000       0.5 0.6666667 1.0000000
+2  10 0.7000000       0.7 0.7000000 0.6557143
+3  15 0.5333333       0.8 0.6400000 0.7128571
+4  20 0.4500000       0.9 0.6000000 0.7602256

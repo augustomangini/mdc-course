@@ -1,0 +1,393 @@
+---
+title:  INF0613 -- Aprendizado de Máquina Não Supervisionado
+output: pdf_document
+subtitle: Trabalho 2 - Redução de Dimensionalidade e Técnicas de Agrupamento
+author: 
+  - Anselmo Faria Alvarez Júnior
+  - Augusto José Mangini dos Santos
+  - Julio Cesar da Silva
+---
+
+<!-- !!!!! Atenção !!!!! -->
+<!-- Antes de fazer qualquer alteração neste arquivo, reabra-o com 
+o encoding correto: 
+File > Reopen with encoding > UTF-8
+-->
+
+
+
+
+
+
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = FALSE, message = FALSE, warning = FALSE, tidy = FALSE)
+options(digits = 3)
+```
+
+
+
+
+O objetivo deste trabalho é exercitar o conhecimento de técnicas de redução de dimensionalidade e técnicas de agrupamento. Usaremos a base de dados `speech.csv`, que está disponível na página da disciplina no Moodle. A base contém amostras da pronúncia em inglês das letras do alfabeto.
+
+# Atividade 0 -- Configurando o ambiente
+Antes de começar a implementação do seu trabalho configure o _workspace_ e importe todos os pacotes e execute o preprocessamento da base:
+
+```{r atv0-code}
+# Adicione os demais pacotes usados neste trabalho:
+library(umap)
+library(Rtsne)
+library(ggplot2)
+library(cluster)
+library(NbClust)
+library(factoextra)
+library(dbscan)
+
+# Configure ambiente de trabalho na mesma pasta 
+# onde colocou a base de dados:
+setwd("C:/Users/augus/OneDrive/Área de Trabalho/Cursos/mdc/aprendizado-nao-supervisionado/trabalhos/trabalho 2")
+
+# Pré-processamento da base de dados
+# Lendo a base de dados
+speech <- read.csv("speech.csv", header = TRUE)
+
+# Convertendo a coluna 618 em characteres 
+speech$LETRA <- LETTERS[speech$LETRA]
+
+```
+
+
+
+# Atividade 1 -- Análise de Componentes Principais (*2,0 pts*)
+
+Durante a redução de dimensionalidade, espera-se que o poder de representação do conjunto de dados seja mantido, para isso é preciso realizar uma análise da variância mantida em cada componente principal obtido. Use função  `prcomp`, que foi vista em aula, para criar os autovetores e autovalores da base de dados. Não use a normalização dos atributos, isto é, defina  `scale.=FALSE`. 
+Em seguida, use o comando `summary`, analise o resultado e os itens a seguir:
+
+
+<!-- Use o comando: options(max.print=2000) para visualizar o resultado 
+do comando summary e fazer suas análises. Não é necessário que toda informação 
+do comando summary apareça no PDF a ser submetido. Desse modo, repita o comando 
+com um valor mais baixo antes de gerar a versão final do PDF. -->
+
+```{r atv1-code}
+
+# Executando a redução de dimensionalidade com o prcomp
+speech.pca1 <- prcomp(speech[,1:617], scale=FALSE)
+
+# Analisando as componentes com o comando summary
+options(max.print=100)
+summary_pca1 <- summary(speech.pca1)
+summary_pca1$importance["Cumulative Proportion", ]
+
+```
+
+## Análise
+
+a) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `80%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+É possível observar que o menor número de componentes para uma variância de pelo menos 80% seja 37 componentes.
+<!-- Fim da resposta -->
+
+b) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `90%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Nesse caso, para uma variância acumulada de 90% são necessários 91 componentes.
+<!-- Fim da resposta -->
+
+c) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `95%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Para 95% de variância acumulada são necessários 169 componentes.
+<!-- Fim da resposta -->
+
+d) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `99%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Para isso, são necessários 377 componentes.
+<!-- Fim da resposta -->
+
+e) Faça um breve resumo dos resultados dos itens *a)-d)* destacando o impacto da redução de dimensionalidade. 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Em resumo, a variância acumulada pedida nos itens anteriores para a quantidade componentes segue:
+- 80% = 37 componentes
+- 90% = 91 componentes (54 diff)
+- 95% = 169 componentes (78)
+- 99% = 377 componentes (208)
+É possível observar que a variância acumulada aumenta com o aumento do número de componentes, porém quando maior o número de componentes, menor é o aumento na variância acumulada com aumentos subsequentes nesse número de componentes. Para se sair de uma variância acumulada de 80% para 90% é necessário um aumento de 54 componentes, maior do que o aumento de 0% a 80% de variância acumulada, o que requere 37 componentes. Quanto mais próximo do 100% de variância acumulada maior fica essa diferença necessária, como é possível observar do salto de 169 para 377 componentes.
+<!-- Fim da resposta -->
+
+# Atividade 2 -- Análise de Componentes Principais e Normalização (*2,0 pts*)
+
+A normalização de dados em alguns casos, pode trazer benefícios. Nesta questão, iremos analisar o impacto dessa prática na redução da dimensionalidade da base de dados `speech.csv`. Use função  `prcomp` para criar os autovetores e autovalores da base de dados usando a normalização dos atributos, isto é, defina `scale.=TRUE`. 
+Em seguida, use o comando `summary`, analise o resultado e os itens a seguir:
+
+```{r atv2-code}
+
+# Executando a redução de dimensionalidade com o prcomp
+ # com normalização dos dados
+speech.pca2 <- prcomp(speech[,1:617], scale=TRUE)
+# Analisando as componentes com o comando summary
+summary_pca2 <- summary(speech.pca2)
+summary_pca2$importance["Cumulative Proportion", ]
+
+```
+
+## Análise
+
+a) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `80%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+São necessários 48 componentes
+<!-- Fim da resposta -->
+
+b) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `90%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+São necessários 111 componentes
+<!-- Fim da resposta -->
+
+c) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `95%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+São necessários 199 componentes
+<!-- Fim da resposta -->
+
+d) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `99%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+São necessários 396 componentes
+<!-- Fim da resposta -->
+
+e) Quais as principais diferenças entre a aplicação do PCA nesse conjunto dados com e sem normalização? Qual opção parece ser mais adequada para esse conjunto de dados? Justifique sua resposta. 
+
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Na análise sem normalização, tínhamos as seguintes quantidades mínimas de componente para atingirmos os limiares desejados de variância acumulada:
+1) 80% = 37 componentes
+2) 90% = 91 componentes
+3) 95% = 169 componentes
+4) 99% = 377 componentes
+
+Na análise normalizada, temos:
+1) 80% = 48 componentes
+2) 90% = 111 componentes
+3) 95% = 199 componentes
+4) 99% = 396 componentes
+
+A Análise de Componentes Principais (PCA) não é invariante em relação a escala dos atributos, ou seja, num dataset onde existam atributos com uma escala numérica muito maior do que outros esses atributos podem dominar a variância total numa análise de PCA sem normalização, pois esta utiliza a matriz de covariância. No caso da análise de PCA com normalização é utilizada a matriz de correlação e a normalização é tal que: subtrai-se a média de cada atributo dos dados e divide-se cada atributo pelo desvio padrão dos valores do atributo. Nesse caso, a variância é distribuída de forma mais uniforme entre os componentes e são necessários mais componentes para atingir os mesmos limiares de uma análise sem normalização, mas a tendência é conseguir capturar padrões mais realistas dos dados.
+
+Num caso de PCA sem normalização onde poucos componentes dominam a variância quase total, a curva de variância pode subir rapidamente no início e precisar de menos componentes para atingir 80% e 90%, mas isso pode ser uma "eficiência" enganosa e não representar bem a estrutura real dos dados. No caso do dataset de Speech é possível observar justamente isso, pois para se atingir até 95% de variância acumulada são necessários menos componentes no caso sem normalização e para atingir 99% são necessários menos componentes para o caso com normalização, indicando o comportamento mencionado anteriormente. Pode-se concluir que o caso de PCA com normalização é mais adequado para esse dataset.
+<!-- Fim da resposta -->
+
+
+# Atividade 3 -- Visualização a partir da Redução (*2,0 pts*)
+
+Nesta atividade, vamos aplicar diferentes métodos de redução de dimensionalidade e comparar as visualizações dos dados obtidos considerando apenas duas dimensões. Lembre de fixar uma semente antes de executar o T-SNE.
+
+a) Aplique a redução de dimensionalidade com a técnica PCA e gere um gráfico de dispersão dos dados. Use a coluna `618` para classificar as amostras e definir uma coloração. 
+
+```{r atv3a-code}
+
+# Aplicando redução de dimensionalidade com a técnica PCA
+speech.pca2 <- prcomp(speech[,1:617], scale=TRUE)
+pca2d <- speech.pca2$x[, 1:2]
+
+# Gerando o gráfico de dispersão
+cores <- rainbow(length(unique(speech$LETRA)))
+names(cores) <- unique(speech$LETRA)
+plot(pca2d, col=cores[speech$LETRA], main = "PCA - 2 Componentes Principais")
+```
+
+b) Aplique a redução de dimensionalidade com a técnica UMAP e gere um gráfico de dispersão dos dados. Use a coluna `618` para classificar as amostras e definir uma coloração. 
+
+```{r atv3b-code}
+
+# Aplicando redução de dimensionalidade com a técnica UMAP
+set.seed(42)
+speech.umap <- umap(as.matrix(speech[,1:617]))
+# Gerando o gráfico de dispersão
+plot(
+  speech.umap$layout,
+  col=cores[speech$LETRA],
+  xlab="Dimensão 1",
+  ylab="Dimensão 2", pch = 16,
+  main = "UMAP - 2 Componentes Principais"
+)
+```
+
+c) Aplique a redução de dimensionalidade com a técnica T-SNE e gere um gráfico de dispersão dos dados. Use a coluna `618` para classificar as amostras e definir uma coloração. 
+
+```{r atv3c-code}
+
+# Aplicando redução de dimensionalidade com a técnica T-SNE
+set.seed(42)
+speech_unicos = unique(speech)
+tsne <- Rtsne(as.matrix(speech_unicos[,1:617]), perplexity = 30, dims=3)
+
+# Gerando o gráfico de dispersão
+plot(
+  tsne$Y, 
+  col=cores[speech_unicos$LETRA],
+  xlab="Dimensão 1",
+  ylab="Dimensão 2",
+  pch=16,
+  main = "t-SNE - 2 Componentes Principais"
+)
+
+```
+
+
+## Análise
+
+d) Qual técnica você acredita que apresentou a melhor projeção? Justifique.
+
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Dentre as 3 técnicas utilizadas, o UMAP apresentou a melhor projeção. O gráfico do PCA gerou uma nuvem de pontos completamente sobrepostos e sem distinção visível de grupos. A técnica t-SNE apresentou um resultado superior, apresentando grupos visivelmente distintos mas com alguma sobreposíção entre grupos em regiões centrais. O UMAP produziu grupos bem compactos e definidos para praticamente todos os pontos com uma clara separação, sendo superior as outras duas técnicas. As técnicas de UMAP e t-SNE são não lineares e probabilísticas, equanto PCA é linear e determínistico, o que pode explicar a diferença perceptível de eficiência.
+<!-- Fim da resposta -->
+
+# Atividade 4 -- Agrupamento com o $K$*-means* (*2,0 pts*)
+
+Com a melhor configuração encontrada na atividade 2, aplique a redução de dimensionalidade para que a variância acumulada seja pelo menos 80% do total. Na sequência, você deverá agrupar os dados com o algoritmo $K$*-means* e utilizará duas métricas básicas para a escolha do melhor $K$: a soma de distâncias intra-cluster e o coeficiente de silhueta. Se desejar, use também a função NbClust para ajudar nas análises.
+
+**Implementações:**
+
+a) Aplique a redução de dimensionalidade com a melhor configuração encontrada nas atividades 1 e 2 para que a variância acumulada seja pelo menos 80% do total.
+
+```{r atv4a-code}
+# Aplicando a redução de dimensionalidade no conjunto de dados original
+speech.pca <- prcomp(speech[,1:617], scale=TRUE)
+red_dim_pca <- speech.pca$x[,1:48]
+head(red_dim_pca)
+```
+
+b) *Gráfico \textsl{Elbow Curve}:* Construa um gráfico com a soma das distâncias intra-cluster para $K$ variando de $1$ a $30$.
+
+```{r atv4b-code}
+# Construindo um gráfico com as distâncias intra-cluster
+set.seed(42)
+tot_withinss <- sapply(1:30, function(k){
+  km_mod <- kmeans(x=red_dim_pca, centers=k)
+  km_mod$tot.withinss
+})
+
+tot_withinss_df <- data.frame(k=1:30, tot_withinss=tot_withinss)
+
+ggplot(tot_withinss_df, aes(x=k, y=tot_withinss)) +
+geom_point() +
+geom_line() +
+scale_x_continuous(breaks = 1:30) +
+ggtitle("") + ylab("Soma dos Quadrados Intra-Grupo") + xlab("k")
+```
+
+c) *Gráfico da Silhueta:* Construa um gráfico com o valor da silhueta para $K$ variando de $1$ a $30$.
+
+```{r atv4c-code}
+# Construindo um gráfico com os valores da silhueta
+set.seed(42)
+fviz_nbclust(red_dim_pca, kmeans,method ="silhouette", k.max=30)
+
+```
+
+d) *Escolha do $K$:* Avalie os gráficos gerados nos itens anteriores e escolha o melhor valor  de $K$ com base nas informações desses gráficos e na sua análise. Com o valor de $K$ definido, gere um gráfico de dispersão (atribuindo cores diferentes para cada grupo).
+
+```{r atv4d-code}
+# Aplicando o k-means com o k escolhido 
+# k escolhido = 2
+k_means_2 <- kmeans(red_dim_pca, centers = 2)
+
+# Construindo um gráfico de dispersão
+fviz_cluster(list(data=red_dim_pca, cluster=k_means_2$cluster), main="K-Means - K=2")
+
+```
+
+
+## Análise
+
+e) Faça um breve resumo dos resultados, indicando a escolha do $K$ e a análise do gráfico de dispersão.
+
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+O gráfico de cotovelo gerado para o dataset reduzido a 48 componentes (com normalização, variância acumulada de 80%) não mostra um cotovelo claro para K entre 1 e 30, pois a curva toda é quase um declive contínuo e suave sem um ponto de inflexão. Já a curva de silhueta mostra um pico claro em K = 2, portanto esse número foi escolhido como melhor K para o dataset baseando-se no resultado matemático puro, mesmo parecendo pouco intuitivo para o dataset com 26 categorias diferentes. O gráfico de dispersão gerado mesmo para K = 2 mostra uma alta sobreposição entre os grupos na região central, com a região inferior central sendo mais separada para o cluster 1 e as regiões extremas da esquerda e direita da região superior mais exclusiva ao cluster 2. Gerando gráficos para K maiores com fins de teste mostraram quase uma sobreposição completa entre os grupos, então realmente o K menor é melhor nessa situação, como demonstra o gráfico de silhueta. Essa limitação na visualização pode ser explicada pela tentativa de se representar 48 componentes selecionados com o PCA em um espaço 2d, perdendo-se a separação visual.
+<!-- Fim da resposta -->
+
+
+# Atividade 5 -- Agrupamento com o *DBscan* (*2,0 pts*)
+
+Com a melhor configuração encontrada na atividade 2, aplique a redução de dimensionalidade para que a variância acumulada seja pelo menos 80% do total. Depois, você deverá agrupar os dados com o algoritmo *DBscan*. Para isso será necessário experimentar com diferentes valores de *eps* e *minPts*. 
+
+**Implementações:**
+
+a) Aplique a redução de dimensionalidade com a melhor configuração encontrada nas atividades 1 e 2 para que a variância acumulada seja pelo menos 80% do total.
+
+```{r atv5a-code}
+# Aplicando a redução de dimensionalidade no conjunto de dados original
+speech.pca <- prcomp(speech[,1:617], scale=TRUE)
+red_dim_pca <- speech.pca$x[,1:48]
+head(red_dim_pca)
+```
+
+b) *Ajuste de Parâmetros:* Experimente com valores diferentes para os parâmetros *eps* e *minPts*. Verifique o impacto dos diferentes valores nos agrupamentos.
+
+```{r atv5b-code}
+# Experimento com valores de eps e minPts
+set.seed(42)
+db_1 <- dbscan(red_dim_pca, eps = 3, minPts = 5)
+table(db_1$cluster)
+
+# Experimento com valores de eps e minPts
+db_2 <- dbscan(red_dim_pca, eps = 6, minPts = 10)
+table(db_2$cluster)
+
+# Experimento com valores de eps e minPts
+db_3 <- dbscan(red_dim_pca, eps = 12, minPts = 16)
+table(db_3$cluster)
+
+# Experimento com valores de eps e minPts
+db_4 <- dbscan(red_dim_pca, eps = 18, minPts = 26)
+table(db_4$cluster)
+
+```
+
+c) *Determinando Ruídos:* Escolha o valor de *minPts* que obteve o melhor resultado no item anterior e use a função `kNNdistplot` do pacote `dbscan` para determinar o melhor valor de *eps* para esse valor de *minPts*. Lembre-se que o objetivo não é remover todos os ruídos. 
+
+```{r atv5c-code}
+# Encontrando o melhor eps com o kNNdistplot
+dbscan::kNNdistplot(red_dim_pca, k = 16)
+```
+
+d) *Visualizando os Grupos:* Após a escolha dos parâmetros *eps* e *minPts*, utilize o rótulo obtido para cada amostra, indicando o grupo ao qual ela pertence, para gerar um gráfico de dispersão (atribuindo cores diferentes para cada grupo). 
+
+```{r atv5d-code}
+# Aplicando o DBscan com os parâmetros escolhidos
+# minpts = 16, eps = 14
+db_final <- dbscan(red_dim_pca, eps = 14, minPts = 16)
+
+# Construindo um gráfico de dispersão
+fviz_cluster(
+  db_final,
+  data = red_dim_pca,
+  stand = FALSE,
+  ellipse = TRUE,
+  show.clust.cent = FALSE,
+  geom ="point",
+  palette ="jco",
+  ggtheme= theme_classic()
+  )
+```
+
+## Análise
+
+e) Faça um breve resumo dos resultados, indicando a escolha dos parâmetros *eps* e *minPts* e a análise do gráfico de dispersão.
+
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Os parâmetros de eps e minPts na primeira questão foram escolhidos por tentativa e erro, começando com minPts = 5 com base na literatura e um eps baixo, o que deixa a maioria dos pontos como ruído. Percebeu-se que aumentar o eps e o minPts criava os clusters desejado, até um limite acima de 20 onde o dataset tendia a ficar todo num cluster só, então escolheu-se minPts como 16. Com isso, o gráfico usando kNNdistplot mostrou que o valor ideal de eps é próximo a 15, onde ocorre a inflexão, então foi escolhido o valor de 14. Ao gerar o gráfico, é possível observar que Isso cria 8 clusters mas mantém um número ainda grande de valores em ruído (pontos pretos). Sabendo-se que diminuindo os valores de minPts e eps todos os pontos ficam como ruído e aumentando todos os pontos ficam num cluster só, é possível afirmar que essa distribuição é a melhor possível para esse caso e também que o algoritmo de DBSCAN não se mostra tão adequado para esse dataset, com a distribuição uniforme de dados no espaço 2d gerados pelo PCA.
+<!-- Fim da resposta -->
+
+
+
+
+

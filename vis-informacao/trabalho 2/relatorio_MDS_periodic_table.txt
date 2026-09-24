@@ -1,0 +1,102 @@
+RELATÓRIO – PARTE 1: PROJEÇÃO MULTIDIMENSIONAL (MDS)
+Conjunto de dados: Periodic Table of Elements (118 elementos)
+Ferramenta: Orange Data Mining
+------------------------------------------------------------
+1. TIPO DE GRÁFICO E FERRAMENTA
+------------------------------------------------------------
+Foi utilizada uma projeção multidimensional do tipo MDS (Multidimensional
+Scaling), gerada no software Orange. O MDS reduz um conjunto de dados de muitas
+dimensões (as várias propriedades físico-químicas dos elementos) para um plano
+2D, posicionando os elementos de forma que as distâncias entre os pontos no
+gráfico preservem, o melhor possível, as distâncias (dissimilaridades) reais
+calculadas a partir de todas as variáveis. Importante: os eixos X e Y do MDS
+NÃO representam variáveis específicas do conjunto — eles apenas organizam os
+elementos de modo que itens semelhantes fiquem próximos e itens diferentes
+fiquem distantes.
+
+------------------------------------------------------------
+2. FLUXO DE PROCESSAMENTO (PIPELINE NO ORANGE)
+------------------------------------------------------------
+File  ->  Select Columns  ->  Continuize  ->  Normalize  ->  Distances  ->  MDS
+
+- File: carregamento do arquivo "Periodic Table of Elements.csv" (versão original).
+- Select Columns: as propriedades numéricas foram definidas como atributos
+  (features); o campo "Element"/"Symbol" como meta; e "Type" como variável-alvo
+  (usada para colorir os pontos).
+- Normalize: as variáveis foram normalizadas para o intervalo [0, 1]. Esse passo
+  é essencial porque as propriedades têm escalas muito diferentes (por exemplo,
+  Ponto de Ebulição na casa dos milhares de Kelvin versus Eletronegatividade
+  entre 0 e 4). Sem a normalização, as variáveis de maior magnitude dominariam
+  o cálculo de distância e distorceriam a projeção.
+- Distances: distância Euclidiana calculada entre as linhas (elementos).
+- MDS: geração da projeção 2D.
+
+------------------------------------------------------------
+3. MAPEAMENTOS VISUAIS
+------------------------------------------------------------
+- Eixo X e Eixo Y -> posição resultante do MDS (sem significado direto; refletem
+  a similaridade global entre os elementos).
+- Cor -> Type (categoria do elemento: Metal de Transição, Gás Nobre, Lantanídeo,
+  Actinídeo, Halogênio, Metal Alcalino, etc.).
+- Rótulo -> Symbol (símbolo químico do elemento).
+
+------------------------------------------------------------
+4. QUALIDADE DA PROJEÇÃO (STRESS)
+------------------------------------------------------------
+O Orange reporta o Kruskal Stress, métrica que indica o quanto a projeção 2D
+distorce as distâncias originais (quanto menor, melhor). Após a otimização
+(inicialização por PCA seguida de "Start"), o stress convergiu e estabilizou em
+aproximadamente 0,270, valor que se repetiu independentemente do ponto de
+partida — o que indica tratar-se de um mínimo estável para estes dados.
+
+Trata-se de um valor de stress relativamente alto, o que é esperado neste caso
+por dois motivos: (a) o conjunto possui muitas variáveis numéricas pouco
+correlacionadas entre si, sendo difícil "achatá-las" fielmente em apenas duas
+dimensões; e (b) há muitos valores faltantes em propriedades como raio iônico e
+calor específico, sobretudo nos elementos sintéticos (transactinídeos e parte
+dos actinídeos), o que afeta o cálculo das distâncias.
+
+Por essa razão, a leitura da projeção se concentra nos PADRÕES GERAIS (formação
+de grupos) e nos OUTLIERS, e não em distâncias finas entre pontos vizinhos, que
+são apenas aproximadas.
+
+------------------------------------------------------------
+5. INFORMAÇÕES OBTIDAS NA ANÁLISE
+------------------------------------------------------------
+Apesar do stress elevado, a projeção evidencia agrupamentos e discrepâncias
+coerentes com o conhecimento químico:
+
+(a) Formação de grupos por similaridade de propriedades:
+    - Os Gases Nobres (He, Ne, Ar, Kr, Xe) aparecem agrupados e afastados do
+      restante, no alto do gráfico, refletindo seu perfil singular (alto
+      potencial de ionização e baixíssima reatividade).
+    - Os Lantanídeos e Actinídeos formam blocos relativamente coesos, por terem
+      propriedades muito próximas entre si.
+    - Os Metais de Transição concentram-se em uma região densa central, com forte
+      semelhança mútua de propriedades.
+
+(b) Outliers (discrepâncias):
+    - Hidrogênio (H) aparece isolado, distante dos demais, coerente com seu calor
+      específico anormalmente alto e seu comportamento atípico na tabela.
+    - Hélio e Neônio destacam-se pelos maiores potenciais de ionização.
+    - Flúor aparece em posição extrema, associado à maior eletronegatividade
+      (3,98) entre todos os elementos.
+
+(c) Continuidade/transição:
+    - Observa-se uma transição gradual entre os blocos (metais, metaloides e não
+      metais), indicando que a mudança de propriedades ao longo da tabela
+      periódica é, em boa medida, contínua, e não abrupta.
+
+------------------------------------------------------------
+6. CONCLUSÃO
+------------------------------------------------------------
+A projeção MDS sintetizou um conjunto de muitas propriedades em uma única
+imagem, permitindo identificar visualmente grupos de elementos com perfis
+semelhantes (gases nobres, lantanídeos/actinídeos, metais de transição) e
+elementos atípicos (especialmente o Hidrogênio). Embora o stress de ~0,270
+indique que as distâncias absolutas devem ser interpretadas com cautela, a
+técnica cumpriu seu objetivo de revelar a estrutura geral de similaridade e os
+principais outliers do conjunto de dados.
+
+[Inserir aqui a figura da projeção MDS gerada no Orange, com a legenda de cores
+por Type e o valor do Kruskal Stress visível.]

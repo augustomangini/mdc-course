@@ -1,0 +1,501 @@
+---
+title: "INF0615 -- Aprendizado Supervisionado I"
+output: pdf_document
+subtitle: "Exercício 11 - XGBoost e Importância de features"
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,   # Exibir código nos chunks
+  error   = FALSE,  # Ocultar mensagens de erro
+  message = FALSE,  # Ocultar mensagens informativas
+  warning = FALSE,  # Ocultar avisos
+  tidy    = FALSE   # Não reformatar automaticamente o código
+)
+
+options(digits = 4) # Definição do número de casas decimais padrão
+```
+
+Neste exercício, exploraremos conceitos de aprendizado supervisionado
+aplicados à detecção de cédulas falsas.
+
+------------------------------------------------------------------------
+
+## Módulo 0: Instalando Dependências
+
+Antes de prosseguir, verifique se as bibliotecas necessárias estão
+instaladas. Caso não estejam, remova o `#` das linhas abaixo para
+instalá-las:
+
+```{r install-packages, eval = FALSE}
+# install.packages("xgboost")
+```
+
+------------------------------------------------------------------------
+
+## Módulo 1: Configuração do Ambiente
+
+Carregue as bibliotecas necessárias e define uma semente aleatória para
+reprodutibilidade:
+
+```{r}
+library(ggplot2)      # Para visualização de dados
+library(caret)        # Para treinamento de modelos
+library(xgboost)
+library(rpart)         
+library(randomForest)  
+
+set.seed(12)  # Garante reprodutibilidade dos resultados
+```
+
+------------------------------------------------------------------------
+
+## Módulo 1.1: Carregar dados Banknote Authentication
+
+Carregar dados:
+
+```{r}
+train_data <- read.csv("banknote_authentication_train.csv", stringsAsFactors = TRUE)
+valid_data <- read.csv("banknote_authentication_validation.csv", stringsAsFactors = TRUE)
+```
+
+------------------------------------------------------------------------
+
+## Módulo 2: XGBoost (manual)
+
+Vamos simular o comportamento de um XGBoost manualmente com árvores de
+decisões "fracas"
+
+```{r}
+train_df <- train_data[, -5]
+y_true   <- ifelse(train_data$class == "forgery", 1, 0)
+
+n_rounds      <- 10        
+learning_rate <- 0.3 
+
+# Chute inicial 
+base_margin  <- mean(y_true) 
+current_pred <- rep(base_margin, nrow(train_df))
+
+forest <- list()
+
+# Gradient Boosting
+for (i in 1:n_rounds) {
+  
+  # Calcular o resíduo
+  residual <- y_true - current_pred
+  
+  temp_df <- data.frame(train_df, target_error = residual)
+  
+  # Treinar uma árvore para prever o resíduo
+  weak_tree <- rpart(target_error ~ ., data = temp_df, maxdepth = 2, method = "anova")
+  
+  forest[[i]] <- weak_tree
+  
+  # A árvore prediz os erros
+  error_pred <- predict(weak_tree, temp_df)
+  
+  # Atualizar a nossa previsão
+  current_pred <- current_pred + (learning_rate * error_pred)
+  
+  mean_error <- mean(abs(y_true - current_pred))
+  print(paste("Rodada", i, "- MAE:", round(mean_error, 4)))
+}
+```
+
+------------------------------------------------------------------------
+
+## Módulo 3: XGBoost (biblioteca)
+
+```{r}
+help(xgboost)
+```
+
+```{r}
+train_labels <- ifelse(train_data$class == "forgery", 1, 0)
+valid_labels <- ifelse(valid_data$class == "forgery", 1, 0)
+
+train_matrix <- as.matrix(train_data[, -which(names(train_data) == "class")])
+valid_matrix <- as.matrix(valid_data[, -which(names(valid_data) == "class")])
+```
+
+```{r}
+xgb_model <- xgboost(
+  data      = train_matrix,
+  label     = as.factor(train_labels),
+  max_depth = 3,
+  eta       = 0.3,
+  nrounds   = 50,
+  objective = "binary:logistic"
+)
+```
+
+```{r}
+dtrain <- xgb.DMatrix(data = train_matrix, label = train_labels)
+dvalid <- xgb.DMatrix(data = valid_matrix, label = valid_labels)
+
+params <- list(
+  objective   = "binary:logistic", 
+  eval_metric = "error", 
+  max_depth   = 3,
+  eta         = 0.3 
+)
+
+watchlist <- list(train = dtrain, eval = dvalid)
+
+xgb_model <- xgb.train(
+  params                = params,
+  data                  = dtrain,
+  nrounds               = 50,                  
+  watchlist             = watchlist,
+  early_stopping_rounds = 10,    
+  print_every_n         = 5 
+)
+```
+
+### Módulo 3.1: Cálculo das Métricas de Desempenho
+
+```{r}
+# Calcula a matriz de confusão relativa 
+calculaMatrizConfusaoRelativa <- function(cm){
+    
+    # Aplicamos a transposição para garantir que a referencia
+    # fique nas linhas e a predicao nas colunas
+    cm_absolute = t(cm$table)
+    
+    cm_relative = cm_absolute
+    
+    cm_relative[1,1] = round(cm_absolute[1,1]/sum(cm_absolute[1,]), digits=2)
+    cm_relative[1,2] = round(cm_absolute[1,2]/sum(cm_absolute[1,]), digits=2)
+    cm_relative[2,1] = round(cm_absolute[2,1]/sum(cm_absolute[2,]), digits=2)
+    cm_relative[2,2] = round(cm_absolute[2,2]/sum(cm_absolute[2,]), digits=2)
+    
+    return(cm_relative)  
+}
+
+calculateMetrics <- function(cm) {
+  # Extrai TN, FP, FN, TP da matriz de confusão
+  cm <- t(cm)
+
+  TN <- cm[1, 1]
+  FP <- cm[1, 2]
+  FN <- cm[2, 1]  
+  TP <- cm[2, 2]  
+  
+  precision <- if (TP + FP == 0) 0 else TP / (TP + FP)
+  recall    <- if (TP + FN == 0) 0 else TP / (TP + FN)
+  f1        <- if (precision + recall == 0) 0 else (2 * precision * recall) / (precision + recall)
+  bal_acc   <- ( (TN / (TN + FP)) + (TP / (TP + FN)) ) / 2
+  
+  return(c(Precision = precision, Recall = recall, F1 = f1, BalAcc = bal_acc))
+}
+```
+
+```{r}
+pred_probs <- predict(xgb_model, dvalid)
+pred_labels <- ifelse(pred_probs > 0.5, 1, 0)
+
+cat("Valid\n")
+cm <- confusionMatrix(data=as.factor(pred_labels), 
+                      reference=as.factor(valid_labels), 
+                      positive='1')
+
+valid_cm_relative <- calculaMatrizConfusaoRelativa(cm)
+valid_cm_relative
+```
+
+```{r}
+# Calculando as métricas para o conjunto de validação
+valid_metrics_baseline = calculateMetrics(cm$table)
+valid_metrics_baseline
+```
+
+------------------------------------------------------------------------
+
+## Módulo 4: Feature Importance
+
+```{r}
+normalizar_importancia <- function(x) {
+  x <- ifelse(x < 0, 0, x)
+  return((x / sum(x)) * 100)
+}
+```
+
+```{r}
+train_matrix <- as.matrix(train_data[, -which(names(train_data) == "class")])
+train_labels <- ifelse(train_data$class == "forgery", 1, 0)
+
+dt_model <- rpart(class ~ ., data = train_data, method = "class")
+rf_model <- randomForest(class ~ ., data = train_data, importance = TRUE)
+
+xgb_model <- xgboost(
+  data      = train_matrix, 
+  label     = as.factor(train_labels), 
+  max_depth = 3, 
+  eta       = 0.3, 
+  nrounds   = 50, 
+  objective = "binary:logistic", 
+  verbose   = 0
+)
+```
+
+### Módulo 4.1: MDI
+
+```{r}
+par(mfrow = c(1, 3), mar = c(4, 7, 3, 1))
+
+# --- Árvore de Decisão ---
+imp_dt_mdi <- normalizar_importancia(dt_model$variable.importance)
+barplot(
+  sort(imp_dt_mdi, decreasing = FALSE), 
+  horiz = TRUE, col = "steelblue", 
+  main = "Decision Tree", 
+  las = 1, cex.names = 1.1, xlab = "Contribuição (%)", xlim = c(0, 100)
+)
+
+# --- Random Forest ---
+imp_rf_mdi <- normalizar_importancia(importance(rf_model, type = 2)[, 1])
+dotchart(
+  sort(imp_rf_mdi), 
+  main = "Random Forest", 
+  pch = 19, col = "darkred", xlab = "Contribuição (%)", xlim = c(0, 100)
+)
+
+# --- XGBoost ---
+matriz_importancia_xgb <- xgb.importance(feature_names = colnames(train_matrix), model = xgb_model)
+imp_xgb_gain <- matriz_importancia_xgb$Gain
+names(imp_xgb_gain) <- matriz_importancia_xgb$Feature
+imp_xgb_norm <- normalizar_importancia(imp_xgb_gain)
+
+barplot(
+  sort(imp_xgb_norm, decreasing = FALSE), 
+  horiz = TRUE, col = "purple", 
+  main = "XGBoost", 
+  las = 1, cex.names = 1.1, xlab = "Contribuição (%)", xlim = c(0, 100)
+)
+```
+
+### Módulo 4.2: Permutação
+
+```{r}
+# --- Árvore de Decisão ---
+calc_perm_dt <- function(modelo, dados, nome_alvo) {
+  alvo_real <- dados[[nome_alvo]]
+  acc_base <- mean(predict(modelo, dados, type = "class") == alvo_real)
+  imp <- numeric(ncol(dados) - 1)
+  names(imp) <- setdiff(colnames(dados), nome_alvo)
+  
+  for(col in names(imp)) {
+    dados_emb <- dados
+    dados_emb[, col] <- sample(dados_emb[, col]) # Embaralha
+    acc_emb <- mean(predict(modelo, dados_emb, type = "class") == alvo_real)
+    imp[col] <- acc_base - acc_emb
+  }
+  return(normalizar_importancia(imp))
+}
+```
+
+```{r}
+# --- XGBoost ---
+calc_perm_xgb <- function(modelo, matriz, labels) {
+  pred_base <- ifelse(predict(modelo, matriz) > 0.5, 1, 0)
+  acc_base <- mean(pred_base == labels)
+  imp <- numeric(ncol(matriz))
+  names(imp) <- colnames(matriz)
+  for(col in names(imp)) {
+    matriz_emb <- matriz
+    matriz_emb[, col] <- sample(matriz_emb[, col]) # Embaralha
+    pred_emb <- ifelse(predict(modelo, matriz_emb) > 0.5, 1, 0)
+    acc_emb <- mean(pred_emb == labels)
+    imp[col] <- acc_base - acc_emb
+  }
+  return(normalizar_importancia(imp))
+}
+```
+
+```{r}
+par(mfrow = c(1, 3), mar = c(4, 7, 3, 1)) 
+
+# --- Árvore de Decisão ---
+imp_dt_perm <- calc_perm_dt(dt_model, train_data, "class")
+
+barplot(
+  sort(imp_dt_perm, decreasing = FALSE), 
+  horiz = TRUE, col = "steelblue", 
+  main = "Decision Tree", 
+  las = 1, cex.names = 1.1, xlab = "Contribuição (%)", xlim = c(0, 100)
+)
+
+# --- Random Forest ---
+imp_rf_perm <- normalizar_importancia(importance(rf_model, type = 1)[, 1])
+dotchart(
+  sort(imp_rf_perm), 
+  main = "Random Forest", 
+  pch = 19, col = "darkgreen", xlab = "Contribuição (%)", xlim = c(0, 100)
+)
+
+# --- XGBoost ---
+imp_xgb_perm <- calc_perm_xgb(xgb_model, train_matrix, train_labels)
+
+barplot(
+  sort(imp_xgb_perm, decreasing = FALSE), 
+  horiz = TRUE, col = "purple", 
+  main = "XGBoost", 
+  las = 1, cex.names = 1.1, xlab = "Contribuição (%)", xlim = c(0, 100)
+)
+```
+
+------------------------------------------------------------------------
+
+## Módulo 5: Bank dataset
+
+```{r}
+data <- read.csv("bank-full.csv", header=TRUE, sep=";", stringsAsFactors=TRUE)
+
+# Este atributo deve obrigatoriamente ser retirado segundo
+# os autores da base para que haja um treinamento e validacao justos.
+data[,"duration"] <- NULL
+
+# Remove os elementos repetidos antes da divisao Treino/Validacao/Test
+data <- unique(data)
+
+# Treino-Validacao 80% / Teste 20%
+randomTrainValIndexes <- sample(1:nrow(data), size=0.8*nrow(data))
+train_valid_data      <- data[randomTrainValIndexes, ]
+test_data             <- data[-randomTrainValIndexes, ] 
+
+randomTrainIndexes <- sample(1:nrow(train_valid_data), size=0.8*nrow(train_valid_data))
+train_data         <- train_valid_data[randomTrainIndexes, ]
+valid_data         <- train_valid_data[-randomTrainIndexes, ] 
+
+# Faz o balanceamento das classes
+train_data_no  <- train_data[train_data$y == "no",]
+train_data_yes <- train_data[train_data$y == "yes",] 
+
+randomNoIdx   <- sample(1:nrow(train_data_no), size=1.4*nrow(train_data_yes))
+subsamplingNo <- train_data_no[randomNoIdx,]
+train_data    <- rbind(train_data_yes, subsamplingNo)
+```
+
+### Módulo 5.1: Feature Importance
+
+```{r}
+train_matrix <- model.matrix(y ~ . - 1, data = train_data)
+train_labels <- ifelse(train_data$y == "yes", 1, 0)
+
+dt_model <- rpart(y ~ ., data = train_data, method = "class")
+rf_model <- randomForest(y ~ ., data = train_data, importance = TRUE)
+
+xgb_model <- xgboost(
+  data = train_matrix, 
+  label = as.factor(train_labels), 
+  max_depth = 3, 
+  eta = 0.3, 
+  nrounds = 50, 
+  objective = "binary:logistic", 
+  verbose = 0
+)
+```
+
+### Módulo 5.2: MDI
+
+```{r}
+par(mfrow = c(1, 3), mar = c(4, 9, 3, 1)) 
+
+# --- Árvore de Decisão ---
+imp_dt_mdi <- normalizar_importancia(dt_model$variable.importance)
+barplot(
+  tail(sort(imp_dt_mdi, decreasing = FALSE), 5), 
+  horiz = TRUE, col = "steelblue", 
+  main = "Decision Tree", 
+  las = 1, cex.names = 1.1, xlab = "Contribuição (%)", xlim = c(0, 100)
+)
+
+# --- Random Forest ---
+imp_rf_mdi <- normalizar_importancia(importance(rf_model, type = 2)[, 1])
+dotchart(
+  tail(sort(imp_rf_mdi), 5), 
+  main = "Random Forest", 
+  pch = 19, col = "darkred", xlab = "Contribuição (%)", xlim = c(0, 100)
+)
+
+# --- XGBoost ---
+matriz_importancia_xgb <- xgb.importance(feature_names = colnames(train_matrix), model = xgb_model)
+imp_xgb_gain <- matriz_importancia_xgb$Gain
+names(imp_xgb_gain) <- matriz_importancia_xgb$Feature
+imp_xgb_norm <- normalizar_importancia(imp_xgb_gain)
+
+barplot(
+  tail(sort(imp_xgb_norm, decreasing = FALSE), 5), 
+  horiz = TRUE, col = "purple", 
+  main = "XGBoost (Gain)", 
+  las = 1, cex.names = 1.1, xlab = "Contribuição (%)", xlim = c(0, 100)
+)
+```
+
+### Módulo 5.3: Permutação
+
+```{r}
+par(mfrow = c(1, 3), mar = c(4, 9, 3, 1)) 
+
+# --- Árvore de Decisão ---
+imp_dt_perm <- calc_perm_dt(dt_model, train_data, "y")
+
+barplot(
+  tail(sort(imp_dt_perm, decreasing = FALSE), 5), 
+  horiz = TRUE, col = "steelblue", 
+  main = "Decision Tree", 
+  las = 1, cex.names = 1.1, xlab = "Contribuição (%)", xlim = c(0, 100)
+)
+
+# --- Random Forest ---
+imp_rf_perm <- normalizar_importancia(importance(rf_model, type = 1)[, 1])
+dotchart(
+  tail(sort(imp_rf_perm), 5), 
+  main = "Random Forest", 
+  pch = 19, col = "darkgreen", xlab = "Contribuição (%)", xlim = c(0, 100)
+)
+
+# --- XGBoost ---
+imp_xgb_perm <- calc_perm_xgb(xgb_model, train_matrix, train_labels)
+
+barplot(
+  tail(sort(imp_xgb_perm, decreasing = FALSE), 5), 
+  horiz = TRUE, col = "purple", 
+  main = "XGBoost", 
+  las = 1, cex.names = 1.1, xlab = "Contribuição (%)", xlim = c(0, 100)
+)
+
+```
+
+### Módulo 5.4: Cardinalidade
+
+```{r}
+# Criando variável ruidosa
+train_data_ruido <- train_data
+train_data_ruido$ruido_aleatorio <- rnorm(nrow(train_data_ruido))
+
+rf_ruido <- randomForest(y ~ ., data = train_data_ruido, importance = TRUE)
+
+imp_ruido_mdi <- normalizar_importancia(importance(rf_ruido, type = 2)[, 1])
+imp_ruido_perm <- normalizar_importancia(importance(rf_ruido, type = 1)[, 1])
+
+par(mfrow = c(1, 2), mar = c(4, 9, 3, 1)) 
+
+dotchart(
+  sort(imp_ruido_mdi), 
+  main = "MDI",
+  pch = 19, col = "darkred", xlab = "Contribuição (%)", xlim = c(0, 100)
+)
+
+dotchart(
+  sort(imp_ruido_perm), 
+  main = "Permutação",
+  pch = 19, col = "darkgreen", xlab = "Contribuição (%)", xlim = c(0, 100)
+)
+
+par(mfrow = c(1, 1))
+```
